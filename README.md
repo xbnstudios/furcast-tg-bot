@@ -12,9 +12,9 @@ $ gcloud beta functions deploy furcast-tg-bot --set-env-vars "TELEGRAM_TOKEN=123
 ```
 From the output, get httpsTrigger.url, and put it into the next command:
 ```
-curl "https://api.telegram.org/bot<TELEGRAM_TOKEN>/setWebhook?url=<TRIGGER_URL>
+$ curl "https://api.telegram.org/bot<TELEGRAM_TOKEN>/setWebhook?url=<TRIGGER_URL>
 ```
 To see configured webhooks,
 ```
-curl "https://api.telegram.org/bot<TELEGRAM_TOKEN>/getWebhookInfo"
+$ curl "https://api.telegram.org/bot<TELEGRAM_TOKEN>/getWebhookInfo"
 ```
