@@ -1,20 +1,23 @@
 # FurCast Telegram Bot
 
-Redone for Google Cloud Functions
-
-See https://seminar.io/2018/09/03/building-serverless-telegram-bot/
+Runs with Google Cloud Functions
 
 ## How to use
 
+Set up a GCP project for Cloud Functions, and set up the gcloud tool with a
+configuration named 'xbn'.
+
+```bash
+$ gcloud beta functions deploy furcast-tg-bot --runtime python37 --trigger-http \
+    --entry-point webhook --configuration xbn --set-env-vars "TELEGRAM_TOKEN=123:abc"
 ```
-$ gcloud beta functions deploy furcast-tg-bot --set-env-vars "TELEGRAM_TOKEN=123:abc" \
-    --configuration xbn --runtime python37 --trigger-http --entry-point webhook
-```
+
 From the output, get httpsTrigger.url, and put it into the next command:
-```
+```bash
 $ curl "https://api.telegram.org/bot<TELEGRAM_TOKEN>/setWebhook?url=<TRIGGER_URL>
 ```
+
 To see configured webhooks,
-```
+```bash
 $ curl "https://api.telegram.org/bot<TELEGRAM_TOKEN>/getWebhookInfo"
 ```
