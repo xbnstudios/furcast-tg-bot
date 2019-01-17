@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import logging
 from telegram import Bot, Update, InlineKeyboardMarkup, InlineKeyboardButton
