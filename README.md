@@ -9,15 +9,16 @@ configuration named 'xbn'.
 
 ```bash
 $ gcloud beta functions deploy furcast-tg-bot --runtime python37 --trigger-http \
-    --entry-point webhook --configuration xbn --set-env-vars "TELEGRAM_TOKEN=123:abc"
+    --entry-point webhook --configuration xbn \
+    --set-env-vars "JOIN_LINK=$JOIN_LINK,TELEGRAM_TOKEN=$TELEGRAM_TOKEN"
 ```
 
 From the output, get httpsTrigger.url, and put it into the next command:
 ```bash
-$ curl "https://api.telegram.org/bot<TELEGRAM_TOKEN>/setWebhook?url=<TRIGGER_URL>
+$ curl "https://api.telegram.org/bot$TELEGRAM_TOKEN/setWebhook?url=$TRIGGER_URL
 ```
 
 To see configured webhooks,
 ```bash
-$ curl "https://api.telegram.org/bot<TELEGRAM_TOKEN>/getWebhookInfo"
+$ curl "https://api.telegram.org/bot$TELEGRAM_TOKEN/getWebhookInfo"
 ```
