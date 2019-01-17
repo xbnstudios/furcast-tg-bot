@@ -5,10 +5,14 @@ import logging
 from telegram import Bot, Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import Dispatcher, CommandHandler
 
+if "JOIN_LINK" not in os.environ or "TELEGRAM_TOKEN" not in os.environ:
+    print("You forgot to set one of the environment vars!")
+    exit(3)
+
 join_template = ("Hello, {fname}! Here's your invite link to join the FurCast chat.\n"
                  "Don't forget to read the rules on https://furcast.fm/chat/ !")
-furcast_link = "https://t.me/joinchat/DRFvFVcxfIDqx65h2VElww"
 button_text = "CLICK ME OH YEAH JUST LIKE THAT"
+furcast_link = os.environ["JOIN_LINK"]
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=os.environ["TELEGRAM_TOKEN"])
