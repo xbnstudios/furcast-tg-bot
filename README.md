@@ -8,8 +8,8 @@ Set up a GCP project for Cloud Functions, and set up the gcloud tool with a
 configuration named 'xbn'.
 
 ```bash
-$ gcloud beta functions deploy furcast-tg-bot --runtime python37 \
-    --trigger-http --entry-point webhook --configuration xbn \
+$ gcloud beta functions deploy furcast-tg-bot --runtime python37 --trigger http \
+    --entry-point webhook --memory 128M --timeout 2s --configuration xbn \
     --set-env-vars "JOIN_LINK=$JOIN_LINK,TELEGRAM_TOKEN=$TELEGRAM_TOKEN"
 ```
 
