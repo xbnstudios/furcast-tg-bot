@@ -2,4 +2,5 @@
 .gitignore
 .gcloudignore
 .git
+LICENSE
 README.md
