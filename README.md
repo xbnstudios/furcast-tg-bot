@@ -9,7 +9,7 @@ configuration named 'xbn'.
 
 ```bash
 $ gcloud beta functions deploy furcast-tg-bot --runtime python37 --trigger http \
-    --entry-point webhook --memory 128M --timeout 2s --configuration xbn \
+    --entry-point webhook --memory 128M --timeout 3s --configuration xbn \
     --set-env-vars "JOIN_LINK=$JOIN_LINK,TELEGRAM_TOKEN=$TELEGRAM_TOKEN"
 ```
 
