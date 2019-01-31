@@ -1,6 +1,6 @@
 #!include:.gitignore
-.gitignore
 .gcloudignore
+.gitignore
 .git
 LICENSE
 README.md
