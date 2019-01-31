@@ -22,13 +22,17 @@ apikey = os.environ["APIKEY"]
 main_chat_id = "-1001462860928"
 domains = {
         "fc": "furcast.fm",
+        "furcast": "furcast.fm",
         "fnt": "fridaynighttracks.com",
+        "fridaynighttracks": "fridaynighttracks.com",
+        "fridaynighttech": "fridaynighttracks.com",
         "mp": "maestropaws.com",
+        "maestropaws": "maestropaws.com",
         }
 show_names = {
-        "fc": "FurCast",
-        "fnt": "Friday Night Tracks",
-        "mp": "MaestroPaws",
+        "furcast.fm": "FurCast",
+        "fridaynighttracks.com": "Friday Night Tracks",
+        "maestropaws.com": "MaestroPaws",
         }
 timezones = { # Additional mappings
         "eastern": "America/New_York",
@@ -40,7 +44,7 @@ bot = Bot(token=os.environ["TELEGRAM_TOKEN"])
 dispatcher = Dispatcher(bot, None, workers=0)
 
 def chatinfo(bot, update):
-    update.message.reply_text(
+    update.effective_chat.send_message(
             text="Name: {}\nID: {}\nUsername: {}\nType: {}".format(
                     update.effective_chat.title,
                     update.effective_chat.id,
@@ -72,10 +76,13 @@ def nextshow(bot, update):
     args = update.message.text.split(" ")
 
     # Which show
-    if len(args) < 2 or args[1].lower() not in domains:
+    if len(args) < 2:
         slug = "fc"
-    else:
+    elif args[1].lower() in domains:
         slug = args[1].lower()
+    else:
+        slug = "fc"
+        args.insert(1, "") # reverse shift to offer timezone
     domain = domains[slug.lower()]
 
     try:
@@ -106,7 +113,7 @@ def nextshow(bot, update):
         tzobj = tz.gettz(tzstr)
         if tzobj is None:
             update.message.reply_text(
-                    text="Sorry, I don't know that time zone")
+                    text="Sorry, I don't understand") # TZ or show
             return
         datestr = (showtime.astimezone(tzobj)
             .strftime("%a %e %b, %H:%M %Z").replace("  ", " "))
@@ -114,9 +121,9 @@ def nextshow(bot, update):
     delta = showtime - datetime.now()
     deltastr = "{} days, {:02}:{:02}".format(delta.days,
             delta.seconds//(60*60), (delta.seconds//60)%60)
-    update.message.reply_markdown(
+    update.effective_chat.send_message(
             text="The next {} is {}. That's {} from now.".format(
-                    show_names[slug], datestr, deltastr))
+                    show_names[domain], datestr, deltastr))
 
 def report(bot, update):
     update.message.reply_text(
