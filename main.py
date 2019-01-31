@@ -19,7 +19,7 @@ join_template = ("Hello, {fname}! Here's your invite link to join the FurCast ch
 button_text = "CLICK ME OH YEAH JUST LIKE THAT"
 furcast_link = os.environ["JOIN_LINK"]
 apikey = os.environ["APIKEY"]
-main_chat_id = "-1001422900025"
+main_chat_id = "-1001462860928"
 domains = {
         "fc": "furcast.fm",
         "fnt": "fridaynighttracks.com",
