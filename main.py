@@ -20,11 +20,11 @@ join_template = ("Hello, {fname}! Here's your invite link to join the FurCast ch
 button_text = "CLICK ME OH YEAH JUST LIKE THAT"
 furcast_link = os.environ["JOIN_LINK"]
 apikey = os.environ["APIKEY"]
-group_ids = {
-        "fc":   "-1001462860928", # FurCast
-        "fnt":  "-1001462860928", # FurCast
-        "mp":   "-1001462860928", # FurCast
-        "test": "-1001422900025", # Riley Test Group
+group_ids = { # Array of groups to post to. Posts in first, forwards to subsequent.
+        "fc":   ["-1001170434051", "-1001462860928"], # XBN, FurCast
+        "fnt":  ["-1001170434051", "-1001462860928"], # XBN, FurCast
+        "mp":   ["-1001170434051", "-1001462860928"], # XBN, FurCast
+        "test": ["-1001263448135", "-1001422900025"], # Riley Test Channel/Group
         }
 domains = {
         "fc": "furcast.fm",
@@ -63,32 +63,51 @@ def chatinfo(bot, update):
                     update.effective_chat.type))
 
 
-def post_pin(bot, group, message=None, pin=None):
+def post_pin(bot, group, message=None, pin=None, notify=False, forward=False):
     """Post a message to a group, pin/unpin
     :bot: The telegram Bot object
     :group: The group slug, ie "fc", to match group_ids entry
     :message: None, or the message to post
-    :pin: None, or True/False to pin the new message / unpin
+    :pin: None or True/False, whether or not to quiet-pin in first chat
+    :notify: True/False, enable notify for channel messages
+    :forward: True/False, forward from the first chat to the others
     """
 
     if group not in group_ids:
         return make_response(
                 '{"status": "Error", "message": "Unknown group}\n', 400)
+
     if message is not None:
-        sent_message = bot.send_message(group_ids[group], message)
-        if pin == True:
-            try:
-                bot.pin_chat_message(group_ids[group],
-                                     sent_message.message_id)
-            except telegram.error.BadRequest as e:
-                # Usually "Not enough rights to pin a message"
-                print("Pin failed:", e)
+        root_message = bot.send_message(group_ids[group][0], message,
+                                        disable_notification = not notify)
+        sent_messages = {group_ids[group][0]: root_message}
+
+        if forward:
+            for target_chat_id in group_ids[group][1:]:
+                sent_messages[target_chat_id] = bot.forward_message(
+                                                    target_chat_id,
+                                                    root_message.chat_id,
+                                                    root_message.message_id,
+                                                    not notify)
+
+        if notify == True and pin != False: # quiet-pin in all chats
+            for chat_id, message in sent_messages.items():
+                try:
+                    print("Pinning:", chat_id, message.message_id)
+                    bot.pin_chat_message(chat_id,
+                                         message.message_id,
+                                         disable_notification=True)
+                except telegram.error.BadRequest as e:
+                    # Usually "Not enough rights to pin a message"
+                    print("Pin failed in {}: {}".format(chat_id, e))
+
     if pin == False:
-        try:
-            bot.unpin_chat_message(group_ids[group])
-        except telegram.error.BadRequest as e:
-            # Usually "Not enough rights to unpin a message"
-            print("Unpin failed:", e)
+        for chat_id in group_ids[group]:
+            try:
+                bot.unpin_chat_message(chat_id)
+            except telegram.error.BadRequest as e:
+                # Usually "Not enough rights to unpin a message"
+                print("Unpin failed in {}: {}".format(chat_id, e))
     return make_response('{"status":"OK"}\n', 200)
 
 
@@ -184,9 +203,9 @@ def version(bot, update):
 
 def webhook(request):
     print("access_route", ",".join(request.access_route))
-    #print("args", request.args)
-    #print("data", request.data)
-    #print("form", request.form)
+    print("args", request.args)
+    print("data", request.data)
+    print("form", request.form)
     if request.args.get("apikey") != apikey:
         return make_response("Nice try\n", 403)
     if request.args.get("cron") == "1":
@@ -198,15 +217,16 @@ def webhook(request):
             pin = True
         elif pin in ["false", "0"]:
             pin = False
+        notify = True if request.form.get("notify") in ["true", "1"] else False
+        forward = True if request.form.get("forward") in ["true", "1"] else False
         return post_pin(bot,
                     request.form["group"],
                     request.form.get("message"),
-                    pin)
+                    pin, notify, forward)
     update = Update.de_json(request.get_json(force=True), bot)
     dispatcher.process_update(update)
 
 dispatcher.add_handler(CommandHandler("chatinfo", chatinfo))
-#dispatcher.add_handler(CommandHandler("live", live))
 dispatcher.add_handler(CommandHandler("next", nextshow))
 dispatcher.add_handler(CommandHandler("report", report))
 dispatcher.add_handler(CommandHandler("start", start))
