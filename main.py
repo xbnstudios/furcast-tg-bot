@@ -172,7 +172,7 @@ def nextshow(bot, update):
         )
 
     delta = showtime - datetime.now()
-    if delta < 0:
+    if delta.total_seconds() < 0:
         update.effective_chat.send_message("A show is currently live or just ended!")
         return
 
