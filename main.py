@@ -79,7 +79,8 @@ def post_pin(bot, group, message=None, pin=None, notify=False, forward=False):
 
     if message is not None:
         root_message = bot.send_message(group_ids[group][0], message,
-                                        disable_notification = not notify)
+                                        disable_notification = not notify or pin)
+        print("disable_notification =", not notify or pin)
         sent_messages = {group_ids[group][0]: root_message}
 
         if forward:
@@ -161,6 +162,10 @@ def nextshow(bot, update):
             .strftime("%a %e %b, %H:%M %Z").replace("  ", " "))
 
     delta = showtime - datetime.now()
+    if delta < 0:
+        update.effective_chat.send_message("A show is currently live or just ended!")
+        return
+
     deltastr = "{} days, {:02}:{:02}".format(delta.days,
             delta.seconds//(60*60), (delta.seconds//60)%60)
     update.effective_chat.send_message(
