@@ -11,39 +11,45 @@ from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, ParseMode,
 import telegram.error
 from telegram.ext import Dispatcher, CommandHandler
 
-if "JOIN_LINK" not in os.environ or "TELEGRAM_TOKEN" not in os.environ or "APIKEY" not in os.environ:
+if (
+    "JOIN_LINK" not in os.environ
+    or "TELEGRAM_TOKEN" not in os.environ
+    or "APIKEY" not in os.environ
+):
     print("You forgot to set one of the environment vars!")
     exit(3)
 
-join_template = ("Hello, {fname}! Here's your invite link to join the FurCast chat.\n"
-                 "Don't forget to read the rules on https://furcast.fm/chat/ !")
+join_template = (
+    "Hello, {fname}! Here's your invite link to join the FurCast chat.\n"
+    "Don't forget to read the rules on https://furcast.fm/chat/ !"
+)
 button_text = "CLICK ME OH YEAH JUST LIKE THAT"
 furcast_link = os.environ["JOIN_LINK"]
 apikey = os.environ["APIKEY"]
-group_ids = { # Array of groups to post to. Posts in first, forwards to subsequent.
-        "fc":   ["-1001170434051", "-1001462860928"], # XBN, FurCast
-        "fnt":  ["-1001170434051", "-1001462860928"], # XBN, FurCast
-        "mp":   ["-1001170434051", "-1001462860928"], # XBN, FurCast
-        "test": ["-1001263448135", "-1001422900025"], # Riley Test Channel/Group
-        }
+group_ids = {  # Array of groups to post to. Posts in first, forwards to subsequent.
+    "fc": ["-1001170434051", "-1001462860928"],  # XBN, FurCast
+    "fnt": ["-1001170434051", "-1001462860928"],  # XBN, FurCast
+    "mp": ["-1001170434051", "-1001462860928"],  # XBN, FurCast
+    "test": ["-1001263448135", "-1001422900025"],  # Riley Test Channel/Group
+}
 domains = {
-        "fc": "furcast.fm",
-        "furcast": "furcast.fm",
-        "fnt": "fridaynighttracks.com",
-        "fridaynighttracks": "fridaynighttracks.com",
-        "fridaynighttech": "fridaynighttracks.com",
-        "mp": "maestropaws.com",
-        "maestropaws": "maestropaws.com",
-        }
+    "fc": "furcast.fm",
+    "furcast": "furcast.fm",
+    "fnt": "fridaynighttracks.com",
+    "fridaynighttracks": "fridaynighttracks.com",
+    "fridaynighttech": "fridaynighttracks.com",
+    "mp": "maestropaws.com",
+    "maestropaws": "maestropaws.com",
+}
 show_names = {
-        "furcast.fm": "FurCast",
-        "fridaynighttracks.com": "Friday Night Tracks",
-        "maestropaws.com": "MaestroPaws",
-        }
-timezones = { # Additional mappings
-        "eastern": "America/New_York",
-        "et": "America/New_York",
-        }
+    "furcast.fm": "FurCast",
+    "fridaynighttracks.com": "Friday Night Tracks",
+    "maestropaws.com": "MaestroPaws",
+}
+timezones = {  # Additional mappings
+    "eastern": "America/New_York",
+    "et": "America/New_York",
+}
 
 
 logging.basicConfig(level=logging.INFO)
@@ -56,11 +62,13 @@ def chatinfo(bot, update):
     Posts info about the current chat"""
 
     update.effective_chat.send_message(
-            text="Name: {}\nID: {}\nUsername: {}\nType: {}".format(
-                    update.effective_chat.title,
-                    update.effective_chat.id,
-                    update.effective_chat.username,
-                    update.effective_chat.type))
+        text="Name: {}\nID: {}\nUsername: {}\nType: {}".format(
+            update.effective_chat.title,
+            update.effective_chat.id,
+            update.effective_chat.username,
+            update.effective_chat.type,
+        )
+    )
 
 
 def post_pin(bot, group, message=None, pin=None, notify=False, forward=False):
@@ -74,30 +82,31 @@ def post_pin(bot, group, message=None, pin=None, notify=False, forward=False):
     """
 
     if group not in group_ids:
-        return make_response(
-                '{"status": "Error", "message": "Unknown group}\n', 400)
+        return make_response('{"status": "Error", "message": "Unknown group}\n', 400)
 
     if message is not None:
-        root_message = bot.send_message(group_ids[group][0], message,
-                                        disable_notification = not notify or pin)
+        root_message = bot.send_message(
+            group_ids[group][0], message, disable_notification=not notify or pin
+        )
         print("disable_notification =", not notify or pin)
         sent_messages = {group_ids[group][0]: root_message}
 
         if forward:
             for target_chat_id in group_ids[group][1:]:
                 sent_messages[target_chat_id] = bot.forward_message(
-                                                    target_chat_id,
-                                                    root_message.chat_id,
-                                                    root_message.message_id,
-                                                    not notify)
+                    target_chat_id,
+                    root_message.chat_id,
+                    root_message.message_id,
+                    not notify,
+                )
 
-        if notify == True and pin != False: # quiet-pin in all chats
+        if notify == True and pin != False:  # quiet-pin in all chats
             for chat_id, message in sent_messages.items():
                 try:
                     print("Pinning:", chat_id, message.message_id)
-                    bot.pin_chat_message(chat_id,
-                                         message.message_id,
-                                         disable_notification=True)
+                    bot.pin_chat_message(
+                        chat_id, message.message_id, disable_notification=True
+                    )
                 except telegram.error.BadRequest as e:
                     # Usually "Not enough rights to pin a message"
                     print("Pin failed in {}: {}".format(chat_id, e))
@@ -125,14 +134,15 @@ def nextshow(bot, update):
         slug = args[1].lower()
     else:
         slug = "fc"
-        args.insert(1, "") # reverse shift to offer timezone
+        args.insert(1, "")  # reverse shift to offer timezone
     domain = domains[slug.lower()]
 
     try:
         r = requests.get("https://{}/nextshow/".format(domain))
         if r.status_code != 200:
-            update.message.reply_text(text=
-                    "Oops, API returned {}".format(r.status_code))
+            update.message.reply_text(
+                text="Oops, API returned {}".format(r.status_code)
+            )
             raise Exception()
     except Exception as e:
         update.message.reply_text(text="Error")
@@ -140,7 +150,7 @@ def nextshow(bot, update):
     showtime = datetime.utcfromtimestamp(int(r.text))
 
     # Timezones
-    if len(args) < 3: # no TZ
+    if len(args) < 3:  # no TZ
         tzstr = "America/New_York"
     else:
         tzstr = args[2]
@@ -148,29 +158,32 @@ def nextshow(bot, update):
     if tzstr.lower() in ["ddate", "discordian"]:
         datestr = DDate(showtime)
     else:
-        if tzstr.lower() in timezones: # custom map
+        if tzstr.lower() in timezones:  # custom map
             tzstr = timezones[args[2].lower()]
-        elif len(tzstr) < 5: # probably "EDT" style
+        elif len(tzstr) < 5:  # probably "EDT" style
             tzstr = tzstr.upper()
         # Otherwise try verbatim
         tzobj = tz.gettz(tzstr)
         if tzobj is None:
-            update.message.reply_text(
-                    text="Sorry, I don't understand") # TZ or show
+            update.message.reply_text(text="Sorry, I don't understand")  # TZ or show
             return
-        datestr = (showtime.astimezone(tzobj)
-            .strftime("%a %e %b, %H:%M %Z").replace("  ", " "))
+        datestr = (
+            showtime.astimezone(tzobj).strftime("%a %e %b, %H:%M %Z").replace("  ", " ")
+        )
 
     delta = showtime - datetime.now()
     if delta < 0:
         update.effective_chat.send_message("A show is currently live or just ended!")
         return
 
-    deltastr = "{} days, {:02}:{:02}".format(delta.days,
-            delta.seconds//(60*60), (delta.seconds//60)%60)
+    deltastr = "{} days, {:02}:{:02}".format(
+        delta.days, delta.seconds // (60 * 60), (delta.seconds // 60) % 60
+    )
     update.effective_chat.send_message(
-            text="The next {} is {}. That's {} from now.".format(
-                    show_names[domain], datestr, deltastr))
+        text="The next {} is {}. That's {} from now.".format(
+            show_names[domain], datestr, deltastr
+        )
+    )
 
 
 def report(bot, update):
@@ -179,8 +192,11 @@ def report(bot, update):
     In the future, may support "Forward me any problem messages", etc"""
 
     update.message.reply_text(
-            text=("Please forward the problem messages and a brief explanation"
-                  " to @RawrJesse, @rileywd, @s0ph0s, or another op."))
+        text=(
+            "Please forward the problem messages and a brief explanation"
+            " to @RawrJesse, @rileywd, @s0ph0s, or another op."
+        )
+    )
 
 
 def start(bot, update):
@@ -190,9 +206,11 @@ def start(bot, update):
     if update.effective_chat.type != "private":
         return
     update.message.reply_markdown(
-            text=join_template.format(fname=update.message.from_user.first_name),
-            reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton(text=button_text, url=furcast_link)]]))
+        text=join_template.format(fname=update.message.from_user.first_name),
+        reply_markup=InlineKeyboardMarkup(
+            [[InlineKeyboardButton(text=button_text, url=furcast_link)]]
+        ),
+    )
 
 
 def version(bot, update):
@@ -200,10 +218,11 @@ def version(bot, update):
     Prints bot info and Cloud Function version"""
 
     update.effective_chat.send_message(
-            "[furcast-tg-bot](https://git.xbn.fm/xbn/furcast-tg-bot)\n"
-            "GCF version {}".format(os.environ["X_GOOGLE_FUNCTION_VERSION"]),
-            disable_web_page_preview=True,
-            parse_mode=ParseMode.MARKDOWN)
+        "[furcast-tg-bot](https://git.xbn.fm/xbn/furcast-tg-bot)\n"
+        "GCF version {}".format(os.environ["X_GOOGLE_FUNCTION_VERSION"]),
+        disable_web_page_preview=True,
+        parse_mode=ParseMode.MARKDOWN,
+    )
 
 
 def webhook(request):
@@ -224,12 +243,17 @@ def webhook(request):
             pin = False
         notify = True if request.form.get("notify") in ["true", "1"] else False
         forward = True if request.form.get("forward") in ["true", "1"] else False
-        return post_pin(bot,
-                    request.form["group"],
-                    request.form.get("message"),
-                    pin, notify, forward)
+        return post_pin(
+            bot,
+            request.form["group"],
+            request.form.get("message"),
+            pin,
+            notify,
+            forward,
+        )
     update = Update.de_json(request.get_json(force=True), bot)
     dispatcher.process_update(update)
+
 
 dispatcher.add_handler(CommandHandler("chatinfo", chatinfo))
 dispatcher.add_handler(CommandHandler("next", nextshow))
