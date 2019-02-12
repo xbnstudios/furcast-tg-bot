@@ -27,10 +27,14 @@ button_text = "CLICK ME OH YEAH JUST LIKE THAT"
 furcast_link = os.environ["JOIN_LINK"]
 apikey = os.environ["APIKEY"]
 group_ids = {  # Array of groups to post to. Posts in first, forwards to subsequent.
-    "fc": ["-1001170434051", "-1001462860928"],  # XBN, FurCast
-    "fnt": ["-1001170434051", "-1001462860928"],  # XBN, FurCast
-    "mp": ["-1001170434051", "-1001462860928"],  # XBN, FurCast
+    "fc": ["-1001170434051", "-1001462860928"],  # XBN, FurCast Group
+    "fc-np": ["-1001462860928"],  # FurCast Group
+    "fnt": ["-1001170434051", "-1001462860928"],  # XBN, FurCast Group
+    "fnt-np": ["-1001462860928"],  # FurCast Group
+    "mp": ["-1001170434051", "-1001462860928"],  # XBN, FurCast Group
+    "mp-np": ["-1001462860928"],  # FurCast Group
     "test": ["-1001263448135", "-1001422900025"],  # Riley Test Channel/Group
+    "test-np": ["-1001422900025"],  # Riley Test Group
 }
 domains = {
     "fc": "furcast.fm",
@@ -86,9 +90,8 @@ def post_pin(bot, group, message=None, pin=None, notify=False, forward=False):
 
     if message is not None:
         root_message = bot.send_message(
-            group_ids[group][0], message, disable_notification=not notify or pin
+            group_ids[group][0], message, disable_notification=not notify
         )
-        print("disable_notification =", not notify or pin)
         sent_messages = {group_ids[group][0]: root_message}
 
         if forward:
@@ -102,8 +105,10 @@ def post_pin(bot, group, message=None, pin=None, notify=False, forward=False):
 
         if notify == True and pin != False:  # quiet-pin in all chats
             for chat_id, message in sent_messages.items():
+                # Don't pin in channels / first-groups
+                if chat_id == group_ids[group][0]:
+                    continue
                 try:
-                    print("Pinning:", chat_id, message.message_id)
                     bot.pin_chat_message(
                         chat_id, message.message_id, disable_notification=True
                     )
@@ -123,7 +128,7 @@ def post_pin(bot, group, message=None, pin=None, notify=False, forward=False):
 
 def nextshow(bot, update):
     """Bot /next callback
-    Prints the next scheduled show for a given slug/name and timezone"""
+    Posts the next scheduled show for a given slug/name and timezone"""
 
     args = update.message.text.split(" ")
 
@@ -215,7 +220,7 @@ def start(bot, update):
 
 def version(bot, update):
     """Bot /version callback
-    Prints bot info and Cloud Function version"""
+    Posts bot info and Cloud Function version"""
 
     update.effective_chat.send_message(
         "[furcast-tg-bot](https://git.xbn.fm/xbn/furcast-tg-bot)\n"
@@ -227,9 +232,9 @@ def version(bot, update):
 
 def webhook(request):
     print("access_route", ",".join(request.access_route))
-    print("args", request.args)
-    print("data", request.data)
-    print("form", request.form)
+    # print("args", request.args)
+    # print("data", request.data)
+    # print("form", request.form)
     if request.args.get("apikey") != apikey:
         return make_response("Nice try\n", 403)
     if request.args.get("cron") == "1":
