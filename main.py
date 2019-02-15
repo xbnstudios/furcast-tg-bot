@@ -126,6 +126,15 @@ def post_pin(bot, group, message=None, pin=None, notify=False, forward=False):
     return make_response('{"status":"OK"}\n', 200)
 
 
+def beat(showtime: datetime) -> str:
+    showtimez = showtime.astimezone(tz.gettz("UTC+1"))
+    beatseconds = (
+        showtimez - showtimez.replace(hour=0, minute=0, second=0, microsecond=0)
+    ).total_seconds()
+    beats = beatseconds / (60 * 60 * 24) * 1000
+    return showtimez.strftime(f"d%d.%m.%y @{beats:03.0f}")
+
+
 def nextshow(bot, update):
     """Bot /next callback
     Posts the next scheduled show for a given slug/name and timezone"""
@@ -162,6 +171,8 @@ def nextshow(bot, update):
 
     if tzstr.lower() in ["ddate", "discordian"]:
         datestr = DDate(showtime)
+    elif tzstr.lower() in ["beat", "swatch", "internet"]:
+        datestr = beat(showtime)
     else:
         if tzstr.lower() in timezones:  # custom map
             tzstr = timezones[args[2].lower()]
