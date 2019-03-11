@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from dateutil import tz
 from ddate.base import DDate
 from flask import make_response
@@ -24,18 +24,27 @@ join_template = (
     "Don't forget to read the rules on https://furcast.fm/chat/ !"
 )
 button_text = "CLICK ME OH YEAH JUST LIKE THAT"
-furcast_link = os.environ["JOIN_LINK"]
-apikey = os.environ["APIKEY"]
+
+
+class Chats(object):
+    xbn = "-1001170434051"
+    furcast = "-1001462860928"
+    riley_test_channel = "-1001263448135"
+    riley_test_group = "-1001422900025"
+    xana_ts = "-1001195641999"
+
+
 group_ids = {  # Array of groups to post to. Posts in first, forwards to subsequent.
-    "fc": ["-1001170434051", "-1001462860928"],  # XBN, FurCast Group
-    "fc-np": ["-1001462860928"],  # FurCast Group
-    "fnt": ["-1001170434051", "-1001462860928"],  # XBN, FurCast Group
-    "fnt-np": ["-1001462860928"],  # FurCast Group
-    "mp": ["-1001170434051", "-1001462860928"],  # XBN, FurCast Group
-    "mp-np": ["-1001462860928"],  # FurCast Group
-    "test": ["-1001263448135", "-1001422900025"],  # Riley Test Channel/Group
-    "test-np": ["-1001422900025"],  # Riley Test Group
+    "fc": [Chats.xbn, Chats.furcast],
+    "fc-np": [Chats.furcast],
+    "fnt": [Chats.xbn, Chats.furcast],
+    "fnt-np": [Chats.furcast],
+    "mp": [Chats.xbn, Chats.furcast],
+    "mp-np": [Chats.furcast],
+    "test": [Chats.riley_test_channel, Chats.riley_test_group],
+    "test-np": [Chats.riley_test_group],
 }
+allow_topics = [Chats.furcast, Chats.xana_ts, Chats.riley_test_group]
 domains = {
     "fc": "furcast.fm",
     "furcast": "furcast.fm",
@@ -55,6 +64,9 @@ timezones = {  # Additional mappings
     "et": "America/New_York",
 }
 
+
+join_link = os.environ["JOIN_LINK"]
+apikey = os.environ["APIKEY"]
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=os.environ["TELEGRAM_TOKEN"])
@@ -103,7 +115,7 @@ def post_pin(bot, group, message=None, pin=None, notify=False, forward=False):
                     not notify,
                 )
 
-        if notify == True and pin != False:  # quiet-pin in all chats
+        if notify is True and pin is not False:  # quiet-pin in all chats
             for chat_id, message in sent_messages.items():
                 # Don't pin in channels / first-groups
                 if chat_id == group_ids[group][0]:
@@ -116,7 +128,7 @@ def post_pin(bot, group, message=None, pin=None, notify=False, forward=False):
                     # Usually "Not enough rights to pin a message"
                     logging.warning("Pin failed in %s: %s", chat_id, e)
 
-    if pin == False:
+    if pin is False:
         for chat_id in group_ids[group]:
             try:
                 bot.unpin_chat_message(chat_id)
@@ -224,9 +236,30 @@ def start(bot, update):
     update.message.reply_markdown(
         text=join_template.format(fname=update.message.from_user.first_name),
         reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton(text=button_text, url=furcast_link)]]
+            [[InlineKeyboardButton(text=button_text, url=join_link)]]
         ),
     )
+
+
+def topic(bot, update):
+    """Bot /topic callback
+    Changes chat title, if allowed"""
+
+    if (
+        update.effective_chat.type == "private"
+        or str(update.effective_chat.id) not in allow_topics
+    ):
+        return
+
+    parts = update.message.text.split(" ", 1)
+    requested = ""
+    if len(parts) > 1 and len(parts[1]) > 0 and parts[1] != "clear":
+        requested = " – " + parts[1]
+    title = update.effective_chat.title.split(" – ", 1)[0] + requested
+    try:
+        bot.set_chat_title(update.effective_chat.id, title)
+    except telegram.error.BadRequest as e:
+        logging.warning("Title change failed in %s: %s", update.effective_chat.id, e)
 
 
 def version(bot, update):
@@ -247,11 +280,10 @@ def webhook(request):
     logging.info("data: %s", request.data)
     logging.info("form: %s", request.form)
     if request.args.get("apikey") != apikey:
-        return make_response("Nice try\n", 403)
-    if request.args.get("cron") == "1":
-        return cron()
+        return make_response("", 404)
+    if "version" in request.args:
+        return os.environ["X_GOOGLE_FUNCTION_VERSION"] + "\n"
     if request.form.get("group") in group_ids:
-        # def post_pin(bot, group, message=None, pin=None):
         pin = request.form.get("pin")
         if pin in ["true", "1"]:
             pin = True
@@ -275,4 +307,5 @@ dispatcher.add_handler(CommandHandler("chatinfo", chatinfo))
 dispatcher.add_handler(CommandHandler("next", nextshow))
 dispatcher.add_handler(CommandHandler("report", report))
 dispatcher.add_handler(CommandHandler("start", start))
+dispatcher.add_handler(CommandHandler("topic", topic))
 dispatcher.add_handler(CommandHandler("version", version))
