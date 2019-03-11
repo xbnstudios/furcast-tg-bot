@@ -16,7 +16,7 @@ if (
     or "TELEGRAM_TOKEN" not in os.environ
     or "APIKEY" not in os.environ
 ):
-    print("You forgot to set one of the environment vars!")
+    logging.error("You forgot to set one of the environment vars!")
     exit(3)
 
 join_template = (
@@ -114,7 +114,7 @@ def post_pin(bot, group, message=None, pin=None, notify=False, forward=False):
                     )
                 except telegram.error.BadRequest as e:
                     # Usually "Not enough rights to pin a message"
-                    print("Pin failed in {}: {}".format(chat_id, e))
+                    logging.warning("Pin failed in %s: %s", chat_id, e)
 
     if pin == False:
         for chat_id in group_ids[group]:
@@ -122,7 +122,7 @@ def post_pin(bot, group, message=None, pin=None, notify=False, forward=False):
                 bot.unpin_chat_message(chat_id)
             except telegram.error.BadRequest as e:
                 # Usually "Not enough rights to unpin a message"
-                print("Unpin failed in {}: {}".format(chat_id, e))
+                logging.warning("Unpin failed in %s: %s", chat_id, e)
     return make_response('{"status":"OK"}\n', 200)
 
 
@@ -242,10 +242,10 @@ def version(bot, update):
 
 
 def webhook(request):
-    print("access_route", ",".join(request.access_route))
-    # print("args", request.args)
-    # print("data", request.data)
-    # print("form", request.form)
+    logging.info("access_route: %s", ",".join(request.access_route))
+    logging.info("args: %s", request.args)
+    logging.info("data: %s", request.data)
+    logging.info("form: %s", request.form)
     if request.args.get("apikey") != apikey:
         return make_response("Nice try\n", 403)
     if request.args.get("cron") == "1":
