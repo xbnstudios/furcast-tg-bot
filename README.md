@@ -22,12 +22,12 @@ From the output, get httpsTrigger.url, and put it into the next command:
 $ curl "https://api.telegram.org/bot$TELEGRAM_TOKEN/setWebhook?url=$TRIGGER_URL?apikey=$APIKEY"
 ```
 
-To see configured webhooks,
+Helpful stuff:
 ```bash
-$ curl "https://api.telegram.org/bot$TELEGRAM_TOKEN/getWebhookInfo"
-```
-
-To re-deploy with the same settings,
-```bash
-$ gcloud beta functions deploy furcast-tg-bot --configuration xbn
+# See configured webhooks for bot
+curl "https://api.telegram.org/bot$TELEGRAM_TOKEN/getWebhookInfo"
+# See currently running version
+curl "$TRIGGER_URL?apikey=$APIKEY&version"
+# Re-deploy with the same settings,
+gcloud beta functions deploy furcast-tg-bot --configuration xbn
 ```
