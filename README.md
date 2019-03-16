@@ -22,7 +22,7 @@ From the output, get httpsTrigger.url, and put it into the next command:
 curl "https://api.telegram.org/bot$TELEGRAM_TOKEN/setWebhook?url=$TRIGGER_URL?apikey=$APIKEY"
 ```
 
-Helpful stuff:
+### Helpful stuff:
 ```bash
 # See configured webhooks for bot
 curl "https://api.telegram.org/bot$TELEGRAM_TOKEN/getWebhookInfo"
