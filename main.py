@@ -233,7 +233,7 @@ def start(bot, update):
 
     if update.effective_chat.type != "private":
         return
-    update.message.reply_markdown(
+    update.message.reply(
         text=join_template.format(fname=update.message.from_user.first_name),
         reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton(text=button_text, url=join_link)]]
