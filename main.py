@@ -270,7 +270,7 @@ def version(bot: Bot, update: Update) -> None:
 
     update.effective_chat.send_message(
         "[furcast-tg-bot](https://git.xbn.fm/xbn/furcast-tg-bot)\n"
-        "GCF version {}".format(os.environ["X_GOOGLE_FUNCTION_VERSION"]),
+        "GCF version {}".format(os.environ.get("X_GOOGLE_FUNCTION_VERSION")),
         disable_web_page_preview=True,
         parse_mode=ParseMode.MARKDOWN,
     )
@@ -284,7 +284,7 @@ def webhook(request: Request):
     if request.args.get("apikey") != apikey:
         return make_response("", 404)
     if "version" in request.args:
-        return os.environ["X_GOOGLE_FUNCTION_VERSION"] + "\n"
+        return str(os.environ.get("X_GOOGLE_FUNCTION_VERSION")) + "\n"
     if request.form.get("group") in group_ids:
         pin = request.form.get("pin")
         if pin in ["true", "1"]:
