@@ -3,7 +3,7 @@
 from datetime import datetime
 from dateutil import tz
 from ddate.base import DDate
-from flask import make_response
+from flask import make_response, Response, Request
 import logging
 import os
 import requests
@@ -73,7 +73,7 @@ bot = Bot(token=os.environ["TELEGRAM_TOKEN"])
 dispatcher = Dispatcher(bot, None, workers=0)
 
 
-def chatinfo(bot, update):
+def chatinfo(bot: Bot, update: Update) -> None:
     """Bot /chatinfo callback
     Posts info about the current chat"""
 
@@ -87,7 +87,9 @@ def chatinfo(bot, update):
     )
 
 
-def post_pin(bot, group, message=None, pin=None, notify=False, forward=False):
+def post_pin(
+    bot: Bot, group: str, message=None, pin=None, notify=False, forward=False
+) -> Response:
     """Post a message to a group, pin/unpin
     :bot: The telegram Bot object
     :group: The group slug, ie "fc", to match group_ids entry
@@ -147,7 +149,7 @@ def beat(showtime: datetime) -> str:
     return showtimez.strftime(f"d%d.%m.%y @{beats:03.0f}")
 
 
-def nextshow(bot, update):
+def nextshow(bot: Bot, update: Update) -> None:
     """Bot /next callback
     Posts the next scheduled show for a given slug/name and timezone"""
 
@@ -214,7 +216,7 @@ def nextshow(bot, update):
     )
 
 
-def report(bot, update):
+def report(bot: Bot, update: Update) -> None:
     """Bot /report callback
     Gives instructions for reporting problems
     In the future, may support "Forward me any problem messages", etc"""
@@ -227,7 +229,7 @@ def report(bot, update):
     )
 
 
-def start(bot, update):
+def start(bot: Bot, update: Update) -> None:
     """Bot /start callback
     Gives user invite link button"""
 
@@ -241,7 +243,7 @@ def start(bot, update):
     )
 
 
-def topic(bot, update):
+def topic(bot: Bot, update: Update) -> None:
     """Bot /topic callback
     Changes chat title, if allowed"""
 
@@ -262,7 +264,7 @@ def topic(bot, update):
         logging.warning("Title change failed in %s: %s", update.effective_chat.id, e)
 
 
-def version(bot, update):
+def version(bot: Bot, update: Update) -> None:
     """Bot /version callback
     Posts bot info and Cloud Function version"""
 
@@ -274,7 +276,7 @@ def version(bot, update):
     )
 
 
-def webhook(request):
+def webhook(request: Request):
     logging.info("access_route: %s", ",".join(request.access_route))
     logging.info("args: %s", request.args)
     logging.info("data: %s", request.data)

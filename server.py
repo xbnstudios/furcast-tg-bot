@@ -2,7 +2,8 @@
 
 # Shim to enable faster testing than GCF
 # Run like this:
-# APIKEY=testkey TELEGRAM_TOKEN="123:abc" JOIN_LINK="https://t.me/404" pipenv run ./server.py
+# APIKEY=testkey TELEGRAM_TOKEN="123:abc" JOIN_LINK="https://t.me/404" \
+#       pipenv run ./server.py
 
 from flask import Flask, request
 from main import webhook
