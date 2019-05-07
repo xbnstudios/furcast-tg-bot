@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from cgi import escape
 from datetime import datetime
 from dateutil import tz
 from ddate.base import DDate
@@ -19,9 +20,11 @@ if (
     logging.error("You forgot to set one of the environment vars!")
     exit(3)
 
+# Parsed as HTML - be sure to escape anything you put in!
 join_template = (
-    "Hello, {fname}! Here's your invite link to join the FurCast chat.\n"
-    "Don't forget to read the rules on https://furcast.fm/chat/ !"
+    "Hello, {escaped_fname}! Please "
+    "<a href='https://furcast.fm/chat/#rules'>read the rules</a>, "
+    "then your invite link is below."
 )
 button_text = "CLICK ME OH YEAH JUST LIKE THAT"
 
@@ -235,11 +238,14 @@ def start(bot: Bot, update: Update) -> None:
 
     if update.effective_chat.type != "private":
         return
-    update.message.reply_text(
-        text=join_template.format(fname=update.message.from_user.first_name),
+    update.message.reply_html(
+        text=join_template.format(
+            escaped_fname=escape(update.message.from_user.first_name)
+        ),
         reply_markup=InlineKeyboardMarkup(
             [[InlineKeyboardButton(text=button_text, url=join_link)]]
         ),
+        disable_web_page_preview=True,
     )
 
 
