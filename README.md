@@ -19,7 +19,7 @@ gcloud beta functions deploy furcast-tg-bot --runtime python37 --trigger http \
 
 From the output, get httpsTrigger.url, and put it into the next command:
 ```bash
-curl "https://api.telegram.org/bot$TELEGRAM_TOKEN/setWebhook?url=$TRIGGER_URL?apikey=$APIKEY"
+curl "https://api.telegram.org/bot$TELEGRAM_TOKEN/setWebhook?url=$TRIGGER_URL&apikey=$APIKEY"
 ```
 
 ### Helpful stuff:
