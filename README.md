@@ -1,23 +1,35 @@
 # FurCast Telegram Bot
 
-Runs with Google Cloud Functions
+- Gates entry to the main FurCast group, to reduce bot activity
+- Information and utility functions like `/next [show] [tz]`
+
+Runs as a free Google Cloud Function, as long as the bot isn't an admin in a
+busy group, which would cause the webhook to be called for every message or
+action and quickly exceed the quota.
 
 ## How to use
 
-Set up a GCP project for Cloud Functions, and set up the gcloud tool with a
-configuration named 'xbn'.
-Generate a random alphanumeric token to be used as an API key for the bot, eg:
+- Create a private group (or make your group private), save the invite link for
+  `$JOIN_LINK` below
+- Create a bot, eg `@furcastbot`, to run this, and save the bot token for
+  `$TELEGRAM_TOKEN` below
+- Create a channel with the @ you want, eg. `@furcast`, and write a message
+  instructing users to talk to the bot for entry to the group.
+- Set up a GCP project for Cloud Functions, and set up the gcloud tool with a
+  configuration named 'xbn'.
+- Generate a random alphanumeric token to be used as an API key for the bot, eg:
 ```bash
 APIKEY=$(tr -cd '[:alnum:]'</dev/urandom|fold -w32|head -n1)
 ```
 
+- Deploy to GCF with the Google Cloud SDK
 ```bash
 gcloud beta functions deploy furcast-tg-bot --runtime python37 --trigger-http \
     --entry-point webhook --memory 128M --timeout 3s --configuration xbn \
     --set-env-vars "JOIN_LINK=$JOIN_LINK,TELEGRAM_TOKEN=$TELEGRAM_TOKEN,APIKEY=$APIKEY"
 ```
 
-From the output, get httpsTrigger.url, and put it into the next command:
+- From the output, get `httpsTrigger.url`, and set the webhook in the telegram bot:
 ```bash
 curl "https://api.telegram.org/bot$TELEGRAM_TOKEN/setWebhook?url=$TRIGGER_URL&apikey=$APIKEY"
 ```
