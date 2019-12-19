@@ -15,14 +15,28 @@ action and quickly exceed the quota.
   `$TELEGRAM_TOKEN` below
 - Create a channel with the @ you want, eg. `@furcast`, and write a message
   instructing users to talk to the bot for entry to the group.
-- Set up a GCP project for Cloud Functions, and set up the gcloud tool with a
-  configuration named 'xbn'.
+- Set up a
+  [new GCP project](https://console.cloud.google.com/projectcreate?previousPage=%2Ffunctions%2Flist)
+- [Enable Cloud Functions](https://console.cloud.google.com/flows/enableapi?apiid=cloudfunctions)
+  for the project
+- EITHER create a new function and manually configure it and upload the source, or continue:
+
+- Set up the Google Cloud SDK's gcloud tool with a configuration named 'xbn':
+
+```bash
+gcloud config configurations create xbn
+gcloud auth login
+gcloud config set project xana-broadcasting
+```
+
 - Generate a random alphanumeric token to be used as an API key for the bot, eg:
+
 ```bash
 APIKEY=$(tr -cd '[:alnum:]'</dev/urandom|fold -w32|head -n1)
 ```
 
-- Deploy to GCF with the Google Cloud SDK
+- Deploy to GCF with the Google Cloud SDK (Repeat after code/config updates)
+
 ```bash
 gcloud beta functions deploy furcast-tg-bot --runtime python37 --trigger-http \
     --entry-point webhook --memory 128M --timeout 3s --configuration xbn \
@@ -30,6 +44,7 @@ gcloud beta functions deploy furcast-tg-bot --runtime python37 --trigger-http \
 ```
 
 - From the output, get `httpsTrigger.url`, and set the webhook in the telegram bot:
+
 ```bash
 curl "https://api.telegram.org/bot$TELEGRAM_TOKEN/setWebhook?url=$TRIGGER_URL&apikey=$APIKEY"
 ```
