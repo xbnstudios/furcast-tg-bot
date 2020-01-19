@@ -1,0 +1,11 @@
+[Unit]
+Description=FurCast Telegram Bot
+
+[Service]
+Type=simple
+Restart=always
+WorkingDirectory=/home/bots/furcast-tg-bot
+ExecStart=/usr/bin/pipenv run ./main.py
+
+[Install]
+WantedBy=default.target
