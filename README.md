@@ -20,10 +20,15 @@ APIKEY=$(tr -cd '[:alnum:]'</dev/urandom|fold -w32|head -n1)
   `$TELEGRAM_TOKEN` below
 * Create a channel with the @ you want, eg. `@furcast`, and write a message
   instructing users to talk to the bot for entry to the group.
-* If using poll bot:
+* If using poll bot, assuming linux account name is `bots`:
   * Copy .env.example to .env and edit
+  * `pipenv install`, since apparently `run` doesn't imply it
   * `pipenv run ./main.py` to verify functionality
-  * Copy `furcast.service` to `~/.config/systemd/blah` TODO
+  * `sudo loginctl enable-linger bots`
+  * `ln -s ../../../furcast-tg-bot/furcast-tg-bot.service
+    ~/.config/systemd/user/furcast-tg-bot.service`
+  * `systemctl --user daemon-reload`
+  * `systemctl --user enable --now furcast-tg-bot`
 
 * Otherwise, for webhooks:
   * Set up a
