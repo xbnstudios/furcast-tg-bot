@@ -1,17 +1,32 @@
 #!/usr/bin/env python3
 
-from cgi import escape
 from datetime import datetime
 from dateutil import tz
 from ddate.base import DDate
+from dotenv import load_dotenv
 from flask import make_response, Response, Request
+from html import escape
 import logging
 import os
 import requests
-from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, ParseMode, Update
+from telegram import (
+    Bot,
+    Chat,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    ParseMode,
+    Update,
+)
 import telegram.error
-from telegram.ext import Dispatcher, CommandHandler
+from telegram.ext import (
+    CallbackContext,
+    CallbackQueryHandler,
+    CommandHandler,
+    Dispatcher,
+    Updater,
+)
 
+load_dotenv()
 if (
     "JOIN_LINK" not in os.environ
     or "TELEGRAM_TOKEN" not in os.environ
@@ -30,11 +45,12 @@ button_text = "CLICK ME OH YEAH JUST LIKE THAT"
 
 
 class Chats(object):
-    xbn = "-1001170434051"
-    furcast = "-1001462860928"
-    riley_test_channel = "-1001263448135"
-    riley_test_group = "-1001422900025"
-    xana_ts = "-1001195641999"
+    xbn = -1001170434051
+    xbn_chatops = -1001498895240
+    furcast = -1001462860928
+    riley_test_channel = -1001263448135
+    riley_test_group = -1001422900025
+    xana_ts = -1001195641999
 
 
 group_ids = {  # Array of groups to post to. Posts in first, forwards to subsequent.
@@ -47,7 +63,6 @@ group_ids = {  # Array of groups to post to. Posts in first, forwards to subsequ
     "test": [Chats.riley_test_channel, Chats.riley_test_group],
     "test-np": [Chats.riley_test_group],
 }
-allow_topics = [Chats.furcast, Chats.xana_ts, Chats.riley_test_group]
 domains = {
     "fc": "furcast.fm",
     "furcast": "furcast.fm",
@@ -62,6 +77,13 @@ show_names = {
     "fridaynighttracks.com": "Friday Night Tracks",
     "maestropaws.com": "MaestroPaws",
 }
+# Channels to allow /topic requests - None = no approval required
+allow_topics = {
+    Chats.xana_ts: None,
+    Chats.furcast: Chats.xbn_chatops,
+    Chats.riley_test_group: Chats.riley_test_channel,
+}
+
 timezones = {  # Additional mappings
     "eastern": "America/New_York",
     "et": "America/New_York",
@@ -72,11 +94,15 @@ join_link = os.environ["JOIN_LINK"]
 apikey = os.environ["APIKEY"]
 
 logging.basicConfig(level=logging.INFO)
-bot = Bot(token=os.environ["TELEGRAM_TOKEN"])
-dispatcher = Dispatcher(bot, None, workers=0)
+if __name__ == "__main__":  # Poll bot
+    updater = Updater(token=os.environ["TELEGRAM_TOKEN"], use_context=True)
+    dispatcher = updater.dispatcher
+else:  # Webhook bot
+    bot = Bot(token=os.environ["TELEGRAM_TOKEN"])
+    dispatcher = Dispatcher(bot, None, workers=0)
 
 
-def chatinfo(bot: Bot, update: Update) -> None:
+def chatinfo(update: Update, context: CallbackContext) -> None:
     """Bot /chatinfo callback
     Posts info about the current chat"""
 
@@ -152,7 +178,7 @@ def beat(showtime: datetime) -> str:
     return showtimez.strftime(f"d%d.%m.%y @{beats:03.0f}")
 
 
-def nextshow(bot: Bot, update: Update) -> None:
+def nextshow(update: Update, context: CallbackContext) -> None:
     """Bot /next callback
     Posts the next scheduled show for a given slug/name and timezone"""
 
@@ -219,7 +245,7 @@ def nextshow(bot: Bot, update: Update) -> None:
     )
 
 
-def report(bot: Bot, update: Update) -> None:
+def report(update: Update, context: CallbackContext) -> None:
     """Bot /report callback
     Gives instructions for reporting problems
     In the future, may support "Forward me any problem messages", etc"""
@@ -232,12 +258,18 @@ def report(bot: Bot, update: Update) -> None:
     )
 
 
-def start(bot: Bot, update: Update) -> None:
+def start(update: Update, context: CallbackContext) -> None:
     """Bot /start callback
     Gives user invite link button"""
 
     if update.effective_chat.type != "private":
         return
+    logging.info(
+        "Inviting %s (%s, %s)",
+        update.effective_user.username,
+        update.effective_user.full_name,
+        update.effective_user.id,
+    )
     update.message.reply_html(
         text=join_template.format(
             escaped_fname=escape(update.message.from_user.first_name)
@@ -249,28 +281,155 @@ def start(bot: Bot, update: Update) -> None:
     )
 
 
-def topic(bot: Bot, update: Update) -> None:
+def topic(update: Update, context: CallbackContext) -> None:
     """Bot /topic callback
     Changes chat title, if allowed"""
 
-    if (
-        update.effective_chat.type == "private"
-        or str(update.effective_chat.id) not in allow_topics
-    ):
+    # No PMs
+    if update.effective_chat.type == "private":
+        update.message.reply_text("Sorry, that only works in groups.")
         return
 
+    # Get just the requested title
     parts = update.message.text.split(" ", 1)
-    requested = ""
-    if len(parts) > 1 and len(parts[1]) > 0 and parts[1] != "clear":
-        requested = " – " + parts[1]
-    title = update.effective_chat.title.split(" – ", 1)[0] + requested
+    if (
+        len(parts) < 2
+        or len(parts[1].strip()) == 0
+        or parts[1].strip().lower() == "-delete"
+    ):
+        requested = ""
+    else:
+        requested = parts[1].strip()
+
+    # Unrestricted room or admin
+    chat_admins = [u.user for u in update.effective_chat.get_administrators()]
+    if (
+        update.effective_chat.id in allow_topics
+        and allow_topics[update.effective_chat.id] is None
+    ) or update.effective_user in chat_admins:
+        logging.info(
+            "%s: %s: %s",
+            update.effective_chat.title,
+            update.effective_user.username,
+            update.message.text,
+        )
+        topic_set(context.bot, update.effective_chat, requested)
+        return
+
+    if update.effective_chat.id in allow_topics:
+
+        mention = update.message.from_user.mention_markdown()
+        link = update.message.link
+        callback_data = ",{},{},{},{}".format(
+            update.effective_chat.id,
+            update.effective_user.id,
+            update.message.message_id,
+            requested,
+        )
+        if len(callback_data) + 2 > 64:
+            update.message.reply_text("Sorry, that's too long.")
+            return
+        context.bot.send_message(
+            allow_topics[update.effective_chat.id],
+            (
+                f'{mention} [proposed]({link}) topic "{requested}"\n'
+                "Admins can accept, admins or op can reject:"
+            ),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            "Accept", callback_data="ta" + callback_data
+                        ),
+                        InlineKeyboardButton(
+                            "Reject", callback_data="tr" + callback_data
+                        ),
+                    ]
+                ]
+            ),
+        )
+        update.message.reply_text(f'Requested topic "{requested}"')
+        return
+
+
+def button(update: Update, context: CallbackContext) -> None:
+    """Bot button callback"""
+
+    data = update.callback_query.data
+    # Topic accept/reject buttons
+    if data.startswith("t"):
+        action, chat_id, user_id, message_id, requested = data.split(",", 4)
+        chat_id = int(chat_id)
+        user_id = int(user_id)
+        message_id = int(message_id)
+        # Not authorized
+        chat_admins = [u.user for u in update.effective_chat.get_administrators()]
+        if (
+            (update.effective_user.id != user_id or action != "tr")  # op can delete
+            and update.effective_user not in chat_admins  # admins
+            and allow_topics[chat_id] == chat_id  # for other-group approval, anyone
+        ):
+            update.callback_query.answer(text="Nice try")
+            return
+        logging.info(
+            "%s: %s: %s bytes: %s",
+            update.effective_chat.title,
+            update.effective_user.username,
+            len(data),
+            data,
+        )
+        # Buttons
+        if action == "ta":
+            topic_set(context.bot, context.bot.get_chat(chat_id), requested)
+            if allow_topics[chat_id] != chat_id:
+                context.bot.send_message(
+                    chat_id, "Accepted!", reply_to_message_id=message_id
+                )
+            update.callback_query.answer(text="Accepted")
+            update.callback_query.message.edit_text(
+                update.callback_query.message.text_markdown
+                + f"\nApproved by "
+                + update.effective_user.mention_markdown(),
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+        elif action == "tr":
+            if allow_topics[chat_id] != chat_id:
+                context.bot.send_message(
+                    chat_id, "Rejected!", reply_to_message_id=message_id
+                )
+            update.callback_query.answer(text="Rejected")
+            update.callback_query.message.edit_text(
+                update.callback_query.message.text_markdown
+                + f"\nRejected by "
+                + update.effective_user.mention_markdown(),
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+
+    logging.error("Button didn't understand callback: %s", data)
+
+
+def topic_set(bot: Bot, chat: Chat, requested_topic: str) -> None:
+    """Enact a topic change"""
+
+    logging.info(
+        '%s: Setting topic "%s"', chat.title, requested_topic,
+    )
+
+    sep = " – "
+    requested_topic = requested_topic.strip()
+    if len(requested_topic) > 0:
+        requested_topic = sep + requested_topic
+    title = chat.title.split(sep, 1)[0] + requested_topic
     try:
-        bot.set_chat_title(update.effective_chat.id, title)
+        bot.set_chat_title(chat.id, title)
     except telegram.error.BadRequest as e:
-        logging.warning("Title change failed in %s: %s", update.effective_chat.id, e)
+        logging.warning("Title change failed in %s: %s", chat.id, e)
 
 
-def version(bot: Bot, update: Update) -> None:
+def version(update: Update, context: CallbackContext) -> None:
     """Bot /version callback
     Posts bot info and Cloud Function version"""
 
@@ -317,3 +476,7 @@ dispatcher.add_handler(CommandHandler("report", report))
 dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CommandHandler("topic", topic))
 dispatcher.add_handler(CommandHandler("version", version))
+dispatcher.add_handler(CallbackQueryHandler(button))
+
+if __name__ == "__main__":
+    updater.start_polling()
