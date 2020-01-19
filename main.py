@@ -348,6 +348,7 @@ def topic(update: Update, context: CallbackContext) -> None:
                     ]
                 ]
             ),
+            disable_notifications=True,
         )
         update.message.reply_text(f'Requested topic "{requested}"')
         return
@@ -395,10 +396,6 @@ def button(update: Update, context: CallbackContext) -> None:
             )
             return
         elif action == "tr":
-            if allow_topics[chat_id] != chat_id:
-                context.bot.send_message(
-                    chat_id, "Rejected!", reply_to_message_id=message_id
-                )
             update.callback_query.answer(text="Rejected")
             update.callback_query.message.edit_text(
                 update.callback_query.message.text_markdown
