@@ -99,7 +99,7 @@ if __name__ == "__main__":  # Poll bot
     dispatcher = updater.dispatcher
 else:  # Webhook bot
     bot = Bot(token=os.environ["TELEGRAM_TOKEN"])
-    dispatcher = Dispatcher(bot, None, workers=0)
+    dispatcher = Dispatcher(bot, None, workers=0, use_context=True)
 
 
 def chatinfo(update: Update, context: CallbackContext) -> None:
@@ -432,7 +432,7 @@ def version(update: Update, context: CallbackContext) -> None:
 
     update.effective_chat.send_message(
         "[furcast-tg-bot](https://git.xbn.fm/xbn/furcast-tg-bot)\n"
-        "GCF version {}".format(os.environ.get("X_GOOGLE_FUNCTION_VERSION")),
+        "GCF version: {}".format(os.environ.get("X_GOOGLE_FUNCTION_VERSION")),
         disable_web_page_preview=True,
         parse_mode=ParseMode.MARKDOWN,
     )
