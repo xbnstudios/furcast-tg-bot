@@ -351,7 +351,7 @@ def topic(update: Update, context: CallbackContext) -> None:
                     ]
                 ]
             ),
-            disable_notifications=True,
+            disable_notification=True,
         )
         update.message.reply_text(f'Requested topic "{requested}"')
         return
