@@ -290,13 +290,16 @@ def topic(update: Update, context: CallbackContext) -> None:
         update.message.reply_text("Sorry, that only works in groups.")
         return
 
-    # Get just the requested title
     parts = update.message.text.split(" ", 1)
-    if (
-        len(parts) < 2
-        or len(parts[1].strip()) == 0
-        or parts[1].strip().lower() == "-delete"
-    ):
+    if len(parts) < 2 or len(parts[1].strip()) == 0:
+        update.message.reply_markdown(
+            f"Try e.g. `{parts[0]} Not My Cup Of Legs` to suggest "
+            f"a chat topic, or `{parts[0]} -` to clear"
+        )
+        return
+
+    # Get just the requested title
+    if parts[1].strip().lower() in ["-delete", "-", '""']:
         requested = ""
     else:
         requested = parts[1].strip()
