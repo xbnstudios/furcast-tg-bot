@@ -508,8 +508,13 @@ dispatcher.add_handler(CallbackQueryHandler(button))
 
 if __name__ == "__main__":
     # Get current bot invite link
-    chat = updater.bot.get_chat(invite_chat)
-    bot_join_link = chat.invite_link
+    try:
+        chat = updater.bot.get_chat(invite_chat)
+        bot_join_link = chat.invite_link
+    except Exception as e:
+        logging.info("Failed to get invite link: %s", e)
+        bot_join_link = None
+
     if bot_join_link is None:
         logging.info("Generating new bot invite link...")
         try:
