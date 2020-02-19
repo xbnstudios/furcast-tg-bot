@@ -27,11 +27,7 @@ from telegram.ext import (
 )
 
 load_dotenv()
-if (
-    "JOIN_LINK" not in os.environ
-    or "TELEGRAM_TOKEN" not in os.environ
-    or "APIKEY" not in os.environ
-):
+if "TELEGRAM_TOKEN" not in os.environ or "APIKEY" not in os.environ:
     logging.error("You forgot to set one of the environment vars!")
     exit(3)
 
@@ -89,8 +85,10 @@ timezones = {  # Additional mappings
     "et": "America/New_York",
 }
 
+invite_chat = Chats.furcast
+admin_chat = Chats.xbn_chatops
 
-join_link = os.environ["JOIN_LINK"]
+join_link = os.environ.get("JOIN_LINK")
 apikey = os.environ["APIKEY"]
 
 logging.basicConfig(level=logging.INFO)
@@ -255,6 +253,35 @@ def report(update: Update, context: CallbackContext) -> None:
             "Please forward the problem messages and a brief explanation"
             " to @RawrJesse, @rileywd, @s0ph0s, or another op."
         )
+    )
+
+
+def replace_invite_link(update: Update, context: CallbackContext) -> None:
+    """Bot /newlink callback
+    Replaces bot's invite link for {invite_chat}
+    NOTE: Each admin has a DIFFERENT INVITE LINK."""
+
+    if update.effective_chat.id != admin_chat:
+        update.message.reply_text("Unauthorized")
+        return
+
+    logging.info(
+        "%s (%s) requested invite link rotation",
+        update.effective_user.name,
+        update.effective_user.id,
+    )
+    try:
+        bot_join_link = updater.bot.export_chat_invite_link(invite_chat)
+        if bot_join_link is None:
+            raise Exception("exportChatInviteLink returned None")
+    except Exception as e:
+        logging.error("Invite link rotation failed: %s", e)
+        update.message.reply_text("Invite link rotation failed: " + str(e))
+        return
+    join_link = bot_join_link
+    logging.info("New bot invite link: %s", join_link)
+    update.message.reply_text(
+        "Success. Bot's new invite link: " + join_link, disable_web_page_preview=True
     )
 
 
@@ -471,6 +498,7 @@ def webhook(request: Request):
 
 
 dispatcher.add_handler(CommandHandler("chatinfo", chatinfo))
+dispatcher.add_handler(CommandHandler("newlink", replace_invite_link))
 dispatcher.add_handler(CommandHandler("next", nextshow))
 dispatcher.add_handler(CommandHandler("report", report))
 dispatcher.add_handler(CommandHandler("start", start))
@@ -479,4 +507,18 @@ dispatcher.add_handler(CommandHandler("version", version))
 dispatcher.add_handler(CallbackQueryHandler(button))
 
 if __name__ == "__main__":
+    # Get current bot invite link
+    chat = updater.bot.get_chat(invite_chat)
+    bot_join_link = chat.invite_link
+    if bot_join_link is None:
+        logging.info("Generating new bot invite link...")
+        try:
+            bot_join_link = updater.bot.export_chat_invite_link(invite_chat)
+        except Exception as e:  # Probably no rights
+            logging.warning("Unable to generate bot invite link: %s", e)
+            pass
+    if bot_join_link is not None:
+        join_link = bot_join_link
+
+    # Start responding
     updater.start_polling()
