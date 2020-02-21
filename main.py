@@ -331,12 +331,23 @@ def topic(update: Update, context: CallbackContext) -> None:
     else:
         requested = parts[1].strip()
 
-    # Unrestricted room or admin
-    chat_admins = [u.user for u in update.effective_chat.get_administrators()]
+    # Unrestricted chat, or admin
+    try:
+        chat_user_status = update.effective_chat.get_member(
+            update.effective_user.id
+        ).status
+    except telegram.error.BadRequest as e:
+        logging.warning(
+            "Failed to get chat user %s (%s): %s",
+            update.effective_user.name,
+            update.effective_user.id,
+            e,
+        )
+        chat_user_status = None
     if (
         update.effective_chat.id in allow_topics
         and allow_topics[update.effective_chat.id] is None
-    ) or update.effective_user in chat_admins:
+    ) or chat_user_status in ["administrator", "creator"]:
         logging.info(
             "%s: %s: %s",
             update.effective_chat.title,
@@ -392,14 +403,30 @@ def button(update: Update, context: CallbackContext) -> None:
     if data.startswith("t"):
         action, chat_id, user_id, message_id, requested = data.split(",", 4)
         chat_id = int(chat_id)
+        target_chat = context.bot.get_chat(chat_id)
         user_id = int(user_id)
         message_id = int(message_id)
+
+        # Get user's perms in /topic'd chat
+        try:
+            chat_user_status = target_chat.get_member(update.effective_user.id).status
+        except telegram.error.BadRequest as e:
+            logging.warning(
+                "Failed to get topic'd chat user %s (%s): %s",
+                update.effective_user.name,
+                update.effective_user.id,
+                e,
+            )
+            chat_user_status = None
+
         # Not authorized
-        chat_admins = [u.user for u in update.effective_chat.get_administrators()]
-        if (
-            (update.effective_user.id != user_id or action != "tr")  # op can delete
-            and update.effective_user not in chat_admins  # admins
-            and allow_topics[chat_id] == chat_id  # for other-group approval, anyone
+        if not (
+            # Topic requester can reject their own
+            (update.effective_user.id == user_id and action == "tr")
+            # Admins in the /topic'd chat can approve
+            or chat_user_status in ["administrator", "creator"]
+            # Admin group approval: allow anyone
+            or update.effective_chat.id == allow_topics[chat_id]
         ):
             update.callback_query.answer(text="Nice try")
             return
@@ -410,6 +437,7 @@ def button(update: Update, context: CallbackContext) -> None:
             len(data),
             data,
         )
+
         # Buttons
         if action == "ta":
             topic_set(context.bot, context.bot.get_chat(chat_id), requested)
