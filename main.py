@@ -354,6 +354,9 @@ def topic(update: Update, context: CallbackContext) -> None:
             update.effective_user.username,
             update.message.text,
         )
+        # If silent change
+        if parts[0] == "/stopic":
+            update.message.delete()
         topic_set(context.bot, update.effective_chat, requested)
         return
 
@@ -531,6 +534,7 @@ dispatcher.add_handler(CommandHandler("next", nextshow))
 dispatcher.add_handler(CommandHandler("report", report))
 dispatcher.add_handler(CommandHandler("start", start))
 dispatcher.add_handler(CommandHandler("topic", topic))
+dispatcher.add_handler(CommandHandler("stopic", topic))
 dispatcher.add_handler(CommandHandler("version", version))
 dispatcher.add_handler(CallbackQueryHandler(button))
 

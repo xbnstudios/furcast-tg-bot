@@ -7,6 +7,12 @@ Runs as a free Google Cloud Function, as long as the bot isn't an admin in a
 busy group, which would cause the webhook to be called for every message or
 action and quickly exceed the quota.
 
+## Commands
+```
+next - See next scheduled show, e.g. "/next fnt" or "/next fc Europe/London"
+topic - Request chat topic, e.g. "/topic Not My Cup Of Legs"
+```
+
 ## How to use
 
 * Generate a random alphanumeric token to be used as an API key for the bot, eg:
