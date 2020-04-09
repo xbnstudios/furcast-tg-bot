@@ -278,6 +278,7 @@ def replace_invite_link(update: Update, context: CallbackContext) -> None:
         logging.error("Invite link rotation failed: %s", e)
         update.message.reply_text("Invite link rotation failed: " + str(e))
         return
+    global join_link
     join_link = bot_join_link
     logging.info("New bot invite link: %s", join_link)
     update.message.reply_text(
