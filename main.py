@@ -357,7 +357,14 @@ def topic(update: Update, context: CallbackContext) -> None:
         )
         # If silent change
         if parts[0] == "/stopic":
-            update.message.delete()
+            try:
+                update.message.delete()
+            except telegram.error.BadRequest as e:
+                logging.warning(
+                    "stopic message delete failed in %s: %s",
+                    update.effective_chat.id,
+                    e,
+                )
         topic_set(context.bot, update.effective_chat, requested)
         return
 
