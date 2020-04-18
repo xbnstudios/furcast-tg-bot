@@ -92,6 +92,8 @@ join_link = os.environ.get("JOIN_LINK")
 apikey = os.environ["APIKEY"]
 
 logging.basicConfig(level=logging.INFO)
+logging.getLogger("telegram").setLevel(logging.INFO)
+logging.getLogger("JobQueue").setLevel(logging.INFO)
 if __name__ == "__main__":  # Poll bot
     updater = Updater(token=os.environ["TELEGRAM_TOKEN"], use_context=True)
     dispatcher = updater.dispatcher
@@ -176,6 +178,56 @@ def beat(showtime: datetime) -> str:
     return showtimez.strftime(f"d%d.%m.%y @{beats:03.0f}")
 
 
+def next_pin_callback(context: CallbackContext) -> None:
+    """Creates/updates pin for next show info
+    Called every minute by JobQueue after eg. /next fc pin
+    """
+
+    ctx = context.job.context
+    logging.debug("Running next-pin job for %s (%s)", ctx["chat"].title, ctx["chat"].id)
+    delta = ctx["showtime"] - datetime.utcnow()
+
+    if delta.total_seconds() < 0:
+        context.job.schedule_removal()
+        ctx["message"].edit_text("Show starting!")
+        # Need a new copy to get the current pinned_message
+        chat = context.bot.get_chat(ctx["chat"].id)
+        if getattr(chat.pinned_message, "message_id", None) == ctx["message"].message_id:
+            context.bot.unpin_chat_message(chat.id)
+        return
+
+    daystr = "" if delta.days < 1 else f"{delta.days} days, "
+    hours = delta.seconds // (60 * 60)
+    if hours > 0 or delta.days > 0:
+        hourstr = str(hours) + (" hour" if hours == 1 else " hours") + ", "
+    else:
+        hourstr = ""
+    minutes = (delta.seconds // 60) % 60
+    minutestr = str(minutes) + (" minute" if minutes == 1 else " minutes")
+    text = (show_names[domains[ctx["slug"]]] +
+            f" starts in {daystr}{hourstr}{minutestr}")
+    try:
+        if ctx["message"] is None:
+            ctx["message"] = ctx["chat"].send_message(text)
+            try:
+                context.bot.pin_chat_message(
+                    ctx["chat"].id, ctx["message"].message_id, disable_notification=True
+                )
+            except telegram.error.BadRequest as e:
+                # Usually "Not enough rights to pin a message"
+                logging.warning("Next-show pin failed in %s: %s", chat_id, e)
+        else:
+            try:
+                ctx["message"].edit_text(text)
+            except telegram.error.BadRequest as e:
+                if "exactly the same" not in e.message:
+                    raise e
+    except Exception as e:
+        logging.error("Next-show job failed: %s: %s", ctx["chat"].id, e)
+        context.job.schedule_removal()
+        raise e
+
+
 def nextshow(update: Update, context: CallbackContext) -> None:
     """Bot /next callback
     Posts the next scheduled show for a given slug/name and timezone"""
@@ -203,6 +255,45 @@ def nextshow(update: Update, context: CallbackContext) -> None:
         update.message.reply_text(text="Error")
         raise e
     showtime = datetime.utcfromtimestamp(int(r.text))
+
+    # Start update job
+    if "pin" in args:
+        try:
+            chat_user_status = update.effective_chat.get_member(
+                update.effective_user.id
+            ).status
+        except telegram.error.BadRequest as e:
+            logging.warning(
+                "Failed to get chat user %s (%s): %s",
+                update.effective_user.name,
+                update.effective_user.id,
+                e,
+            )
+            update.message.reply_text(text="Error checking permissions")
+            return
+        if chat_user_status not in ["administrator", "creator"]:
+            update.message.reply_text(text="You aren't allowed to do that")
+            return
+        ctx = {
+            "chat": update.effective_chat,
+            "message": None,
+            "slug": slug,
+            "showtime": showtime,
+        }
+        logging.info(
+            "Scheduled next-pin job, %s (%s) for %s",
+            update.effective_user.name,
+            update.effective_user.id,
+            update.effective_chat.title,
+        )
+        updater.job_queue.run_repeating(
+            next_pin_callback,
+            60,
+            0,
+            context=ctx,
+            name=f"next_pin_{update.effective_chat.id}",
+        )
+        return
 
     # Timezones
     if len(args) < 3:  # no TZ
