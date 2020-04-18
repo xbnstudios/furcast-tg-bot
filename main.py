@@ -228,7 +228,7 @@ def nextshow(update: Update, context: CallbackContext) -> None:
             showtime.astimezone(tzobj).strftime("%a %e %b, %H:%M %Z").replace("  ", " ")
         )
 
-    delta = showtime - datetime.now()
+    delta = showtime - datetime.utcnow()
     if delta.total_seconds() < 0:
         update.effective_chat.send_message("A show is currently live or just ended!")
         return
