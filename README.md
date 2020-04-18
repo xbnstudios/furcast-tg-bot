@@ -5,7 +5,7 @@
 
 Runs as a free Google Cloud Function, as long as the bot isn't an admin in a
 busy group, which would cause the webhook to be called for every message or
-action and quickly exceed the quota.
+action and quickly exceed the quota. Some functions will not work as intended!
 
 ## Commands
 ```
