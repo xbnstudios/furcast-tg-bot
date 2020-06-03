@@ -12,6 +12,16 @@ action and quickly exceed the quota. Some functions will not work as intended!
 next - See next scheduled show, e.g. "/next fnt" or "/next fc Europe/London"
 topic - Request chat topic, e.g. "/topic Not My Cup Of Legs"
 ```
+### Other commands
+Don't tell botfather.
+```
+chatinfo - List the chat ID
+newlink - (Admin group) Rotate the main group invite link
+next [slug] pin - Pin a continuously updated countdown message
+start - (PM) Request the group invite link. Prompted by TG client.
+stopic - Silently set the topic (delete command message)
+version - Print the source link and GCF version if available
+```
 
 ## How to use
 
