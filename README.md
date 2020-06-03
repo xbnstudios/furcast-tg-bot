@@ -24,7 +24,7 @@ APIKEY=$(tr -cd '[:alnum:]'</dev/urandom|fold -w32|head -n1)
   `$JOIN_LINK` below
 * Create a bot, eg `@furcastbot`, to run this, and save the bot token for
   `$TELEGRAM_TOKEN` below
-* Create a channel with the @ you want, eg. `@furcast`, and write a message
+* Create a channel with the @ you want, eg. `@furcastfm`, and write a message
   instructing users to talk to the bot for entry to the group.
 * If using poll bot, assuming linux account name is `bots`:
   * Copy .env.example to .env and edit
