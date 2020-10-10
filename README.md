@@ -27,9 +27,9 @@ version - Print the source link and GCF version if available
 
 * Generate a random alphanumeric token to be used as an API key for the bot, eg:
 
-```bash
-APIKEY=$(tr -cd '[:alnum:]'</dev/urandom|fold -w32|head -n1)
-```
+  ```bash
+  APIKEY=$(tr -cd '[:alnum:]'</dev/urandom|fold -w32|head -n1)
+  ```
 * Create a private group (or make your group private), save the invite link for
   `$JOIN_LINK` below
 * Create a bot, eg `@furcastbot`, to run this, and save the bot token for
