@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
+# coding=utf-8
 
 # Send a test request to the bot
 
 import json
+
 import requests
 
-webhook = "http://127.0.0.1:5000/furcast-tg-bot"
+webhook = "http://127.0.0.1:5000/furcastbot"
 apikey = "testkey"
 
 instr = (

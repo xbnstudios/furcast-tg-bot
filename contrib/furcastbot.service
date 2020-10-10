@@ -5,7 +5,7 @@ Description=FurCast Telegram Bot
 Type=simple
 Restart=always
 WorkingDirectory=/home/bots/furcast-tg-bot
-ExecStart=/usr/bin/pipenv run ./main.py
+ExecStart=/home/bots/furcast-tg-bot/venv/bin/furcastbot
 
 [Install]
 WantedBy=default.target

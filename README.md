@@ -13,7 +13,7 @@ next - See next scheduled show, e.g. "/next fnt" or "/next fc Europe/London"
 topic - Request chat topic, e.g. "/topic Not My Cup Of Legs"
 ```
 ### Other commands
-Don't tell botfather.
+Don't tell BotFather.
 ```
 chatinfo - List the chat ID
 newlink - (Admin group) Rotate the main group invite link
@@ -38,13 +38,16 @@ APIKEY=$(tr -cd '[:alnum:]'</dev/urandom|fold -w32|head -n1)
   instructing users to talk to the bot for entry to the group.
 * If using poll bot, assuming linux account name is `bots`:
   * Copy .env.example to .env and edit
-  * `pipenv install`, since apparently `run` doesn't imply it
-  * `pipenv run ./main.py` to verify functionality
+  * `virtualenv -p python3 venv`
+  * `. venv/bin/activate`
+  * `pip install --upgrade .`
+  * `deactivate`
+  * `venv/bin/furcastbot` to verify functionality
   * `sudo loginctl enable-linger bots`
-  * `ln -s ../../../furcast-tg-bot/furcast-tg-bot.service
-    ~/.config/systemd/user/furcast-tg-bot.service`
+  * `ln -s ../../../furcast-tg-bot/contrib/furcastbot.service
+    ~/.config/systemd/user/furcastbot.service`
   * `systemctl --user daemon-reload`
-  * `systemctl --user enable --now furcast-tg-bot`
+  * `systemctl --user enable --now furcastbot`
 
 * Otherwise, for webhooks:
   * Set up a
@@ -54,25 +57,25 @@ APIKEY=$(tr -cd '[:alnum:]'</dev/urandom|fold -w32|head -n1)
   * EITHER create a new function and manually configure it and upload the source, or continue:
   * Set up the Google Cloud SDK's gcloud tool with a configuration named 'xbn':
 
-```bash
-gcloud config configurations create xbn
-gcloud auth login
-gcloud config set project xana-broadcasting
-```
+  ```bash
+  gcloud config configurations create xbn
+  gcloud auth login
+  gcloud config set project xana-broadcasting
+  ```
 
-* Deploy to GCF with the Google Cloud SDK (Repeat after code/config updates)
+  * Deploy to GCF with the Google Cloud SDK (Repeat after code/config updates)
 
-```bash
-gcloud beta functions deploy furcast-tg-bot --runtime python37 --trigger-http \
-    --entry-point webhook --memory 128M --timeout 3s --configuration xbn \
-    --set-env-vars "JOIN_LINK=$JOIN_LINK,TELEGRAM_TOKEN=$TELEGRAM_TOKEN,APIKEY=$APIKEY"
-```
+  ```bash
+  gcloud beta functions deploy furcast-tg-bot --runtime python37 --trigger-http \
+      --entry-point webhook --memory 128M --timeout 3s --configuration xbn \
+      --set-env-vars "JOIN_LINK=$JOIN_LINK,TELEGRAM_TOKEN=$TELEGRAM_TOKEN,APIKEY=$APIKEY"
+  ```
 
-* From the output, get `httpsTrigger.url`, and set the webhook in the telegram bot:
+  * From the output, get `httpsTrigger.url`, and set the webhook in the telegram bot:
 
-```bash
-curl "https://api.telegram.org/bot$TELEGRAM_TOKEN/setWebhook?url=$TRIGGER_URL&apikey=$APIKEY"
-```
+  ```bash
+  curl "https://api.telegram.org/bot$TELEGRAM_TOKEN/setWebhook?url=$TRIGGER_URL&apikey=$APIKEY"
+  ```
 
 ### Helpful stuff:
 ```bash
