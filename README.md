@@ -3,9 +3,9 @@
 * Gates entry to the main FurCast group, to reduce bot activity
 * Information and utility functions like `/next [show] [tz]`
 
-Runs as a free Google Cloud Function, as long as the bot isn't an admin in a
-busy group, which would cause the webhook to be called for every message or
-action and quickly exceed the quota. Some functions will not work as intended!
+Runs both as a poll bot and a free Google Cloud Function. The poll bot handles
+most things, especially those requiring state like `/next pin`. The GCF copy
+handles external events like Now Playing announcements.
 
 ## Commands
 ```
@@ -30,8 +30,8 @@ version - Print the source link and GCF version if available
   ```bash
   APIKEY=$(tr -cd '[:alnum:]'</dev/urandom|fold -w32|head -n1)
   ```
-* Create a private group (or make your group private), save the invite link for
-  `$JOIN_LINK` below
+* Create a private group (or make your group private). If you don't want the bot
+  to have admin, generate an invite link for `$JOIN_LINK` below
 * Create a bot, eg `@furcastbot`, to run this, and save the bot token for
   `$TELEGRAM_TOKEN` below
 * Create a channel with the @ you want, eg. `@furcastfm`, and write a message
