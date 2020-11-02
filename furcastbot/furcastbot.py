@@ -489,8 +489,8 @@ def topic(update: Update, context: CallbackContext) -> None:
     parts = update.message.text.split(" ", 1)
     if len(parts) < 2 or len(parts[1].strip()) == 0:
         update.message.reply_html(
-            f"Try e.g. <pre>{parts[0]} Not My Cup Of Legs</pre> to suggest "
-            f"a chat topic, or <pre>{parts[0]} -</pre> to clear"
+            f"Try e.g. <code>{parts[0]} Not My Cup Of Legs</code> to suggest "
+            f"a chat topic, or <code>{parts[0]} -</code> to clear"
         )
         return
 
