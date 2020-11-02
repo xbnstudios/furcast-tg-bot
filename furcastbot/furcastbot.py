@@ -192,7 +192,7 @@ def post_np_group(group_id: int, text: str, oneshot: bool = False) -> None:
 
     if pin_id is None:
         pin = chat.send_message(
-            text, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True
+            text, parse_mode=ParseMode.HTML, disable_web_page_preview=True
         )
         try:
             bot.pin_chat_message(chat.id, pin.message_id, disable_notification=True)
@@ -205,7 +205,7 @@ def post_np_group(group_id: int, text: str, oneshot: bool = False) -> None:
                 text,
                 group_id,
                 pin_id,
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 disable_web_page_preview=True,
             )
         except telegram.error.BadRequest as e:
@@ -488,9 +488,9 @@ def topic(update: Update, context: CallbackContext) -> None:
 
     parts = update.message.text.split(" ", 1)
     if len(parts) < 2 or len(parts[1].strip()) == 0:
-        update.message.reply_markdown(
-            f"Try e.g. `{parts[0]} Not My Cup Of Legs` to suggest "
-            f"a chat topic, or `{parts[0]} -` to clear"
+        update.message.reply_html(
+            f"Try e.g. <pre>{parts[0]} Not My Cup Of Legs</pre> to suggest "
+            f"a chat topic, or <pre>{parts[0]} -</pre> to clear"
         )
         return
 
@@ -538,7 +538,7 @@ def topic(update: Update, context: CallbackContext) -> None:
 
     if update.effective_chat.id in allow_topics:
 
-        mention = update.message.from_user.mention_markdown()
+        mention = update.message.from_user.mention_html()
         link = update.message.link
         callback_data = ",{},{},{},{}".format(
             update.effective_chat.id,
@@ -552,10 +552,10 @@ def topic(update: Update, context: CallbackContext) -> None:
         context.bot.send_message(
             allow_topics[update.effective_chat.id],
             (
-                f'{mention} [proposed]({link}) topic "{requested}"\n'
+                f'{mention} <a href="{link}">proposed</a> topic "{requested}"\n'
                 "Admins can accept, admins or op can reject:"
             ),
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup(
                 [
                     [
@@ -626,19 +626,19 @@ def button(update: Update, context: CallbackContext) -> None:
                 )
             update.callback_query.answer(text="Accepted")
             update.callback_query.message.edit_text(
-                update.callback_query.message.text_markdown
+                update.callback_query.message.text_html
                 + "\nApproved by "
-                + update.effective_user.mention_markdown(),
-                parse_mode=ParseMode.MARKDOWN,
+                + update.effective_user.mention_html(),
+                parse_mode=ParseMode.HTML,
             )
             return
         elif action == "tr":
             update.callback_query.answer(text="Rejected")
             update.callback_query.message.edit_text(
-                update.callback_query.message.text_markdown
+                update.callback_query.message.text_html
                 + "\nRejected by "
-                + update.effective_user.mention_markdown(),
-                parse_mode=ParseMode.MARKDOWN,
+                + update.effective_user.mention_html(),
+                parse_mode=ParseMode.HTML,
             )
             return
 
@@ -670,10 +670,10 @@ def version(update: Update, context: CallbackContext) -> None:
     Posts bot info and Cloud Function version"""
 
     update.effective_chat.send_message(
-        "[furcast-tg-bot](https://github.com/xbnstudios/furcast-tg-bot)\n"
+        "<a href='https://github.com/xbnstudios/furcast-tg-bot'>furcast-tg-bot</a>\n"
         "GCF version: {}".format(os.environ.get("X_GOOGLE_FUNCTION_VERSION")),
         disable_web_page_preview=True,
-        parse_mode=ParseMode.MARKDOWN,
+        parse_mode=ParseMode.HTML,
     )
 
 
