@@ -534,6 +534,15 @@ def topic(update: Update, context: CallbackContext) -> None:
                     e,
                 )
         topic_set(context.bot, update.effective_chat, requested)
+        if update.effective_chat.id in allow_topics:
+            mention = update.message.from_user.mention_html()
+            link = update.message.link
+            context.bot.send_message(
+                allow_topics[update.effective_chat.id],
+                f'{mention} <a href="{link}">set</a> topic "{requested}"\n',
+                parse_mode=ParseMode.HTML,
+                disable_notification=True,
+            )
         return
 
     if update.effective_chat.id in allow_topics:
