@@ -230,10 +230,10 @@ def post_np(title: str, show: str) -> None:
 
     text = (
         f"Now playing: {title}\n"
-        f"🎵 {show_names[domains[show]]} is live! "
-        f"📺 [Watch](https://{domains[show]}/video/) "
-        f"🎧 [Listen](https://{domains[show]}/audio/) "
-        f"💬 [Chat](https://{domains[show]}/chat/) "
+        f"🎵 {show_names[domains[show]]} is live!\n"
+        f"📺 <a href='https://{domains[show]}/video/'>Watch</a> "
+        f"🎧 <a href='https://{domains[show]}/audio/'>Listen</a> "
+        f"💬 <a href='https://{domains[show]}/chat/'>Chat</a> "
     )
 
     groups = group_ids.get(show + "-np")
