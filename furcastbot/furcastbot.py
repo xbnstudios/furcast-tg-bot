@@ -324,12 +324,9 @@ def nextshow(update: Update, context: CallbackContext) -> None:
     try:
         r = requests.get("https://{}/nextshow/".format(domain))
         if r.status_code != 200:
-            update.message.reply_text(
-                text="Oops, API returned {}".format(r.status_code)
-            )
-            raise Exception()
+            raise Exception("API returned " + r.status_code)
     except Exception as e:
-        update.message.reply_text(text="Error")
+        update.message.reply_text(text="Error: " + str(e))
         raise e
     showtime = datetime.utcfromtimestamp(int(r.text))
 
