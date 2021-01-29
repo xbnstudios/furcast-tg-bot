@@ -40,6 +40,7 @@ join_template = (
     "then your invite link is below. Use it before it expires!"
 )
 button_text = "CLICK ME OH YEAH JUST LIKE THAT"
+next_show_default = "fnt"
 
 
 class Chats(object):
@@ -313,11 +314,11 @@ def nextshow(update: Update, context: CallbackContext) -> None:
 
     # Which show
     if len(args) < 2:
-        slug = "fc"
+        slug = next_show_default
     elif args[1].lower() in domains:
         slug = args[1].lower()
     else:
-        slug = "fc"
+        slug = next_show_default
         args.insert(1, "")  # reverse shift to offer timezone
     domain = domains[slug.lower()]
 
