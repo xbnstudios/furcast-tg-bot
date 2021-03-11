@@ -110,10 +110,9 @@ admin_chat = Chats.xbn_chatops
 join_link = os.environ.get("JOIN_LINK")
 apikey = os.environ["APIKEY"]
 
-logging.basicConfig(level=logging.DEBUG)
-# logging.getLogger("telegram").setLevel(logging.INFO)
-# logging.getLogger("JobQueue").setLevel(logging.INFO)
-
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("telegram").setLevel(logging.INFO)
+logging.getLogger("JobQueue").setLevel(logging.INFO)
 
 bot: Bot
 dispatcher: Dispatcher
