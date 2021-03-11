@@ -324,6 +324,10 @@ def nextshow(update: Update, context: CallbackContext) -> None:
     """Bot /next callback
     Posts the next scheduled show for a given slug/name and timezone"""
 
+    # Message edit.
+    if update.message is None:
+        return
+
     args = update.message.text.split(" ")
 
     # Which show
@@ -339,7 +343,7 @@ def nextshow(update: Update, context: CallbackContext) -> None:
     try:
         r = requests.get("https://{}/nextshow/".format(domain))
         if r.status_code != 200:
-            raise Exception("API returned " + r.status_code)
+            raise Exception("API returned " + str(r.status_code))
     except Exception as e:
         update.message.reply_text(text="Error: " + str(e))
         raise e
