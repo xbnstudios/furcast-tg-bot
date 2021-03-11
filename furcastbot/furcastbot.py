@@ -395,7 +395,7 @@ def nextshow(update: Update, context: CallbackContext) -> None:
         tzstr = args[2]
 
     if tzstr.lower() in ["ddate", "discordian"]:
-        datestr = DDate(showtime)
+        datestr = str(DDate(showtime))
         if datestr.startswith("Today is "):
             datestr = datestr[9:]
     elif tzstr.lower() in ["beat", "swatch", "internet"]:
