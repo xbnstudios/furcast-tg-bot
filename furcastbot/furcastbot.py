@@ -57,6 +57,8 @@ group_ids = {  # Array of groups to post to. Posts in first, forwards to subsequ
     "fc-np": [Chats.furcast],
     "fnt": [Chats.xbn, Chats.furcast],
     "fnt-np": [Chats.furcast],
+    "dd": [Chats.xbn, Chats.furcast],
+    "dd-np": [Chats.furcast],
     "mp": [Chats.xbn, Chats.furcast],
     "mp-np": [Chats.furcast],
     "test": [Chats.riley_test_channel, Chats.riley_test_group],
@@ -68,6 +70,9 @@ domains = {
     "fnt": "fridaynighttracks.com",
     "fridaynighttracks": "fridaynighttracks.com",
     "fridaynighttech": "fridaynighttracks.com",
+    "dd": "discdive.com",
+    "discdive": "discdive.com",
+    "diskdive": "discdive.com",
     "mp": "maestropaws.com",
     "maestropaws": "maestropaws.com",
     "test": "example.com",
@@ -75,6 +80,7 @@ domains = {
 show_names = {
     "furcast.fm": "FurCast",
     "fridaynighttracks.com": "Friday Night Tracks",
+    "discdive.com": "Disc Dive",
     "maestropaws.com": "MaestroPaws",
     "example.com": "Example Show",
 }
@@ -229,10 +235,10 @@ def post_np(title: str, show: str) -> None:
     if show not in group_ids:
         return make_response({"status": "Error", "error": "Unknown show slug"}, 404)
 
-    text = (
-        f"Now playing: {title}\n"
-        f"🎵 {show_names[domains[show]]} is live!\n"
-        f"📺 <a href='https://{domains[show]}/video/'>Watch</a> "
+    text = f"Now playing: {title}\n🎵 {show_names[domains[show]]} is live!\n"
+    if show != "dd":
+        text += f"📺 <a href='https://{domains[show]}/video/'>Watch</a> "
+    text += (
         f"🎧 <a href='https://{domains[show]}/audio/'>Listen</a> "
         f"💬 <a href='https://{domains[show]}/chat/'>Chat</a> "
     )
