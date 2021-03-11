@@ -93,7 +93,15 @@ allow_topics = {
 
 timezones = {  # Additional mappings
     "eastern": "America/New_York",
+    "edt": "America/New_York",
+    "est": "America/New_York",
     "et": "America/New_York",
+    "nzst": "Pacific/Auckland",
+    "nzdt": "Pacific/Auckland",
+    "nzt": "Pacific/Auckland",
+    "aest": "Australia/Sydney",
+    "aedt": "Australia/Sydney",
+    "aet": "Australia/Sydney",
 }
 
 invite_chat = Chats.furcast
