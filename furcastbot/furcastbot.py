@@ -296,10 +296,18 @@ def next_pin_callback(context: CallbackContext) -> None:
         hourstr = ""
     minutes = (delta.seconds // 60) % 60
     minutestr = str(minutes) + (" minute" if minutes == 1 else " minutes")
-    text = show_names[domains[ctx["slug"]]] + f" starts in {daystr}{hourstr}{minutestr}"
+    text = "<a href='https://{}/'>{}</a> starts in {}{}{}".format(
+        domains[ctx["slug"]],
+        show_names[domains[ctx["slug"]]],
+        daystr,
+        hourstr,
+        minutestr,
+    )
     try:
         if ctx["message"] is None:
-            ctx["message"] = ctx["chat"].send_message(text)
+            ctx["message"] = ctx["chat"].send_message(
+                text, parse_mode=ParseMode.HTML, disable_web_page_preview=True
+            )
             try:
                 context.bot.pin_chat_message(
                     ctx["chat"].id, ctx["message"].message_id, disable_notification=True
