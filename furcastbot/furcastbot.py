@@ -317,7 +317,9 @@ def next_pin_callback(context: CallbackContext) -> None:
                 logging.warning("Next-show pin failed in %s: %s", ctx["chat"].id, e)
         else:
             try:
-                ctx["message"].edit_text(text)
+                ctx["message"].edit_text(
+                    text, parse_mode=ParseMode.HTML, disable_web_page_preview=True
+                )
             except telegram.error.BadRequest as e:
                 if "exactly the same" not in e.message:
                     raise e
