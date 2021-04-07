@@ -278,7 +278,12 @@ def next_pin_callback(context: CallbackContext) -> None:
 
     if delta.total_seconds() < 0:
         context.job.schedule_removal()
-        ctx["message"].edit_text("Show starting!")
+        text = "<a href='https://{}/'>{}</a> is starting!".format(
+            domains[ctx["slug"]], show_names[domains[ctx["slug"]]]
+        )
+        ctx["message"].edit_text(
+            text, parse_mode=ParseMode.HTML, disable_web_page_preview=True
+        )
         # Need a new copy to get the current pinned_message
         chat = context.bot.get_chat(ctx["chat"].id)
         if (
