@@ -365,20 +365,8 @@ def nextshow(update: Update, context: CallbackContext) -> None:
 
     # Start update job
     if "pin" in args:
-        try:
-            chat_user_status = update.effective_chat.get_member(
-                update.effective_user.id
-            ).status
-        except telegram.error.BadRequest as e:
-            logging.warning(
-                "Failed to get chat user %s (%s): %s",
-                update.effective_user.name,
-                update.effective_user.id,
-                e,
-            )
-            update.message.reply_text(text="Error checking permissions")
-            return
-        if chat_user_status not in ["administrator", "creator"]:
+        user = update.effective_chat.get_member(update.effective_user.id)
+        if not user.can_pin_messages and user.status != "creator":
             update.message.reply_text(text="You aren't allowed to do that")
             return
         ctx = {
@@ -533,22 +521,17 @@ def topic(update: Update, context: CallbackContext) -> None:
         requested = parts[1].strip()
 
     # Unrestricted chat, or admin
-    try:
-        chat_user_status = update.effective_chat.get_member(
-            update.effective_user.id
-        ).status
-    except telegram.error.BadRequest as e:
-        logging.warning(
-            "Failed to get chat user %s (%s): %s",
-            update.effective_user.name,
-            update.effective_user.id,
-            e,
-        )
-        chat_user_status = None
+    user = update.effective_chat.get_member(update.effective_user.id)
     if (
-        update.effective_chat.id in allow_topics
-        and allow_topics[update.effective_chat.id] is None
-    ) or chat_user_status in ["administrator", "creator"]:
+        (
+            update.effective_chat.id in allow_topics
+            and allow_topics[update.effective_chat.id] is None
+        )
+        # No reason to require full can_change_info for this.
+        # Chatops have can_delete_messages, so let's use that.
+        or user.can_delete_messages
+        or user.status == "creator"
+    ):
         logging.info(
             "%s: %s: %s",
             update.effective_chat.title,
@@ -628,23 +611,15 @@ def button(update: Update, context: CallbackContext) -> None:
         message_id = int(message_id)
 
         # Get user's perms in /topic'd chat
-        try:
-            chat_user_status = target_chat.get_member(update.effective_user.id).status
-        except telegram.error.BadRequest as e:
-            logging.warning(
-                "Failed to get topic'd chat user %s (%s): %s",
-                update.effective_user.name,
-                update.effective_user.id,
-                e,
-            )
-            chat_user_status = None
+        user = target_chat.get_member(update.effective_user.id)
 
         # Not authorized
         if not (
             # Topic requester can reject their own
             (update.effective_user.id == user_id and action == "tr")
-            # Admins in the /topic'd chat can approve
-            or chat_user_status in ["administrator", "creator"]
+            # Chatops in the /topic'd chat can approve (see topic() note)
+            or user.can_delete_messages
+            or user.status == "creator"
             # Admin group approval: allow anyone
             or update.effective_chat.id == allow_topics[chat_id]
         ):
