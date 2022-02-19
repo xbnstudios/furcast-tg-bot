@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-# coding=utf-8
 
 # Send a test request to the bot
+
+from __future__ import annotations
 
 import json
 

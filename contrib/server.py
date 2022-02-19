@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-# coding=utf-8
 
 # Shim to enable faster testing than GCF
 # Run like this:
 # APIKEY=testkey TELEGRAM_TOKEN="123:abc" JOIN_LINK="https://t.me/404" \
 #       pipenv run ./server.py
+
+from __future__ import annotations
 
 from os import environ
 
