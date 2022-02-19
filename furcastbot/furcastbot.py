@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 from html import escape
 import logging
 import os
@@ -27,6 +29,8 @@ from telegram.ext import (
     CommandHandler,
     Dispatcher,
     Updater,
+    MessageHandler,
+    Filters,
 )
 
 load_dotenv()
@@ -40,6 +44,11 @@ join_template = (
     "<a href='https://furcast.fm/chat/#rules'>read the rules</a>, "
     "then your invite link is below. Use it before it expires!"
 )
+rate_limit_template = (
+    "Sorry, {escaped_fname}, too many people have tried to join that group recently. "
+    "Try again later."
+)
+
 button_text = "CLICK ME OH YEAH JUST LIKE THAT"
 next_show_default = "fnt"
 
@@ -52,6 +61,20 @@ class Chats(object):
     riley_test_group = -1001422900025
     xana_ts = -1001195641999
 
+
+# The shortest delay into the future it will let you pick is 5 seconds.
+join_link_expiry_delta = timedelta(minutes=1, seconds=5)
+# List of (telegram.ChatInviteLink, chat_id) because revoking an invite link
+# requires both the URL and the chat ID, and the ChatInviteLink object doesn't
+# contain the chat ID.
+join_link_list = []
+join_ratelimit_min = timedelta(minutes=10)
+join_ratelimit_active = {
+    Chats.furcast: True,
+}
+join_ratelimit_last_join = {
+    Chats.furcast: datetime(1970, 1, 1, 0, 0, 0, 0),
+}
 
 group_ids = {  # Array of groups to post to. Posts in first, forwards to subsequent.
     "fc": [Chats.xbn, Chats.furcast],
@@ -275,7 +298,7 @@ def next_pin_callback(context: CallbackContext) -> None:
 
     ctx = context.job.context
     logging.debug("Running next-pin job for %s (%s)", ctx["chat"].title, ctx["chat"].id)
-    delta = ctx["showtime"] - datetime.utcnow()
+    delta = ctx["showtime"] - datetime.now(tz=timezone.utc)
 
     if delta.total_seconds() < 0:
         context.job.schedule_removal()
@@ -437,12 +460,28 @@ def report(update: Update, context: CallbackContext) -> None:
     Gives instructions for reporting problems
     In the future, may support "Forward me any problem messages", etc"""
 
-    update.message.reply_text(
-        text=(
-            "Please forward the problem messages and a brief explanation"
-            " to @RawrJesse, @rileywd, @s0ph0s, or another op."
+    # Ignore messages that aren't PMed to the bot.
+    if update.effective_chat.type == "private":
+        update.message.reply_text(
+            text="Reporting messages in PMs isn't done yet; for now please PM an admin directly."
         )
-    )
+    else:
+        if update.message.reply_to_message is None:
+            update.message.reply_text(
+                text="Please reply to the message you want to report."
+            )
+        else:
+            mention = update.message.from_user.mention_html()
+            summon_link = update.message.link
+            reply_link = update.message.reply_to_message.link
+            context.bot.send_message(
+                admin_chat,
+                f'{mention} has <a href="{summon_link}">summoned</a> admins in reply '
+                f'to <a href="{reply_link}">a message</a>; they said:\n'
+                f"{update.message.text}",
+                parse_mode=ParseMode.HTML,
+            )
+            update.message.reply_text("Thank you; we’re on it.")
 
 
 def replace_invite_link(update: Update, context: CallbackContext) -> None:
@@ -459,43 +498,145 @@ def replace_invite_link(update: Update, context: CallbackContext) -> None:
         update.effective_user.name,
         update.effective_user.id,
     )
+    reply_text = ""
+    # Regenerate the bot's own invite link, just in case.
+    bot_join_link_rerolled = False
     try:
         bot_join_link = updater.bot.export_chat_invite_link(invite_chat)
         if bot_join_link is None:
             raise Exception("exportChatInviteLink returned None")
+        global join_link
+        join_link = bot_join_link
+        logging.info("New bot invite link: %s", join_link)
+        bot_join_link_rerolled = True
     except Exception as e:
         logging.error("Invite link rotation failed: %s", e)
-        update.message.reply_text("Invite link rotation failed: " + str(e))
-        return
-    global join_link
-    join_link = bot_join_link
-    logging.info("New bot invite link: %s", join_link)
-    update.message.reply_text(
-        "Success. Bot's new invite link: " + join_link, disable_web_page_preview=True
-    )
+        reply_text += "(1/2) Invite link rotation failed: " + str(e)
+    if bot_join_link_rerolled:
+        reply_text += "(1/2) Success. Bot's invite link re-rolled."
+
+    reply_text += "\n"
+    # Revoke all of the per-user invite links that the bot has issued.
+    global join_link_list
+    error_count = 0
+    for link, chat_id in join_link_list:
+        try:
+            revoked_link = updater.bot.revoke_chat_invite_link(
+                chat_id, link.invite_link
+            )
+            if not revoked_link.is_revoked:
+                logging.error(
+                    "Somehow %s didn't get revoked?", revoked_link.invite_link
+                )
+                error_count += 1
+        except Exception as e:
+            logging.error(
+                "Revocation failed for %s with error: %s", link.invite_link, e
+            )
+            error_count += 1
+    join_link_list = []
+    if error_count < 1:
+        reply_text += "(2/2) Success. All per-user links revoked."
+    else:
+        reply_text += (
+            "(2/2) Per-user invite link revocation failed for %d links. See logs for details."
+            % error_count
+        )
+    update.message.reply_text(reply_text)
 
 
 def start(update: Update, context: CallbackContext) -> None:
     """Bot /start callback
     Gives user invite link button"""
+    chat_to_join = Chats.furcast
+    current_timestamp = datetime.now(tz=timezone.utc)
 
+    # Ignore messages that aren't PMed to the bot.
     if update.effective_chat.type != "private":
         return
+    # If join rate limits are enabled, throttle joins to prevent join flooding.
+    if join_ratelimit_active[chat_to_join]:
+        logging.debug("rate limiting is active for chat %s", chat_to_join)
+        time_since_last_join = (
+            current_timestamp - join_ratelimit_last_join[chat_to_join]
+        )
+        user_status = context.bot.get_chat_member(
+            chat_to_join, update.effective_user.id
+        )
+        # user_status.LEFT is "they are not a member, but can join on their own"
+        # This means that people who are banned are also excluded from joining
+        # through the bot (with a somewhat confusing error).
+        if user_status.status != user_status.LEFT:
+            logging.info(
+                "Denying join by %s (%s, %s) to %s because they're already a member "
+                "or were banned",
+                update.effective_user.username,
+                update.effective_user.full_name,
+                update.effective_user.id,
+                chat_to_join,
+            )
+            update.message.reply_text(
+                "Hey wait a second, you're already a member of that chat! No links "
+                "for you."
+            )
+            return
+        logging.debug(
+            "it has been %s since the last permitted join", time_since_last_join
+        )
+        if time_since_last_join < join_ratelimit_min:
+            logging.info(
+                "Denying join by %s (%s, %s) to %s due to rate limit",
+                update.effective_user.username,
+                update.effective_user.full_name,
+                update.effective_user.id,
+                chat_to_join,
+            )
+            update.message.reply_html(
+                text=rate_limit_template.format(
+                    escaped_fname=escape(update.message.from_user.first_name)
+                ),
+                disable_web_page_preview=True,
+            )
+            return
+        join_ratelimit_last_join[chat_to_join] = current_timestamp
     logging.info(
-        "Inviting %s (%s, %s)",
+        "Inviting %s (%s, %s) to %s",
         update.effective_user.username,
         update.effective_user.full_name,
         update.effective_user.id,
+        chat_to_join,
     )
-    update.message.reply_html(
-        text=join_template.format(
-            escaped_fname=escape(update.message.from_user.first_name)
-        ),
-        reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton(text=button_text, url=join_link)]]
-        ),
-        disable_web_page_preview=True,
-    )
+    # Create custom invite link for this user, which limits how many times the
+    # link can be used (to help prevent spam/abuse).
+    try:
+        expiry_date = current_timestamp + join_link_expiry_delta
+        logging.debug(
+            "Creating join link for %s that expires at %s", chat_to_join, expiry_date
+        )
+        custom_join_link = context.bot.create_chat_invite_link(
+            chat_to_join,
+            expire_date=expiry_date,
+            member_limit=1,
+        )
+        join_link_list.append((custom_join_link, chat_to_join))
+        update.message.reply_html(
+            text=join_template.format(
+                escaped_fname=escape(update.message.from_user.first_name)
+            ),
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            text=button_text, url=custom_join_link.invite_link
+                        )
+                    ]
+                ]
+            ),
+            disable_web_page_preview=True,
+        )
+    except telegram.error.TelegramError as e:
+        logging.info("Could not generate invite link: %s", e)
+        update.message.reply_html(text="Uh oh, something went wrong. Poke an admin.")
 
 
 def topic(update: Update, context: CallbackContext) -> None:
@@ -735,10 +876,13 @@ def main():
     dispatcher.add_handler(CommandHandler("newlink", replace_invite_link))
     dispatcher.add_handler(CommandHandler("next", nextshow))
     dispatcher.add_handler(CommandHandler("report", report))
+    dispatcher.add_handler(CommandHandler("admin", report))
+    dispatcher.add_handler(CommandHandler("admins", report))
     dispatcher.add_handler(CommandHandler("start", start))
     dispatcher.add_handler(CommandHandler("topic", topic))
     dispatcher.add_handler(CommandHandler("stopic", topic))
     dispatcher.add_handler(CommandHandler("version", version))
+    dispatcher.add_handler(MessageHandler(Filters.regex(r"@admins?"), report))
     dispatcher.add_handler(CallbackQueryHandler(button))
 
     # Get current bot invite link
