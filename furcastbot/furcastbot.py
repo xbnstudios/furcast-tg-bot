@@ -762,6 +762,7 @@ def main():
 
     # Start responding
     updater.start_polling()
+    updater.idle()
 
 
 if __name__ == "__main__":  # Poll bot
