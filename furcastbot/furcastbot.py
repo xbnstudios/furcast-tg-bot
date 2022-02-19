@@ -474,12 +474,13 @@ def report(update: Update, context: CallbackContext) -> None:
             mention = update.message.from_user.mention_html()
             summon_link = update.message.link
             reply_link = update.message.reply_to_message.link
+            escaped_report_text = escape(update.message.text)
             update.message.reply_to_message.forward(admin_chat)
             context.bot.send_message(
                 admin_chat,
                 f'{mention} has <a href="{summon_link}">summoned</a> admins in reply '
                 f'to <a href="{reply_link}">the above message</a>; they said:\n'
-                f"{update.message.text}",
+                f"{escaped_report_text}",
                 parse_mode=ParseMode.HTML,
             )
             update.message.reply_text("Thank you; we’re on it.")
