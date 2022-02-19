@@ -28,9 +28,9 @@ from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
     Dispatcher,
-    Updater,
-    MessageHandler,
     Filters,
+    MessageHandler,
+    Updater,
 )
 
 load_dotenv()
