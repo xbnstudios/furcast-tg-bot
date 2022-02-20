@@ -22,8 +22,8 @@ from telegram import (
     ParseMode,
     Update,
 )
-import telegram.error
 import telegram.constants
+import telegram.error
 from telegram.ext import (
     CallbackContext,
     CallbackQueryHandler,
