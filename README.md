@@ -11,6 +11,7 @@ handles external events like Now Playing announcements.
 ```
 next - See next scheduled show, e.g. "/next fnt" or "/next fc Europe/London"
 topic - Request chat topic, e.g. "/topic Not My Cup Of Legs"
+report - Get admin attention. Reply to a message with e.g. "/report Spambot!"
 ```
 ### Other commands
 Don't tell BotFather.
