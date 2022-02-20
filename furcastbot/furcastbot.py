@@ -72,8 +72,10 @@ join_ratelimit_min = timedelta(minutes=10)
 join_ratelimit_active = {
     Chats.furcast: True,
 }
+# If you don't specify a timezone, you'll get errors related to subtracting
+# timezone-aware and timezone-naive datetime objects.
 join_ratelimit_last_join = {
-    Chats.furcast: datetime(1970, 1, 1, 0, 0, 0, 0),
+    Chats.furcast: datetime(1970, 1, 1, 0, 0, 0, 0, tzinfo=timezone.utc),
 }
 
 group_ids = {  # Array of groups to post to. Posts in first, forwards to subsequent.
@@ -466,7 +468,7 @@ def report(update: Update, context: CallbackContext) -> None:
             text="Reporting messages in PMs isn't done yet; for now please PM an admin directly."
         )
     else:
-        if update.message.reply_to_message is None:
+        if update.message is None or update.message.reply_to_message is None:
             update.message.reply_text(
                 text="Please reply to the message you want to report."
             )
@@ -884,7 +886,7 @@ def main():
     dispatcher.add_handler(CommandHandler("topic", topic))
     dispatcher.add_handler(CommandHandler("stopic", topic))
     dispatcher.add_handler(CommandHandler("version", version))
-    dispatcher.add_handler(MessageHandler(Filters.regex(r"@admins?"), report))
+    dispatcher.add_handler(MessageHandler(Filters.regex(r"\b@admins?\b"), report))
     dispatcher.add_handler(CallbackQueryHandler(button))
 
     # Get current bot invite link
