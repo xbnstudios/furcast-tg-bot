@@ -1,0 +1,101 @@
+telegram_token = "12345678:configureconfigureconfigureconfigure"
+api_key = "yourrandomlygeneratedstringhere"
+
+# HTML, be sure to escape <> etc.
+# Available {variables}: escaped_fname
+join_template = """
+Hello, {escaped_fname}! Please
+<a href='https://furcast.fm/chat/#rules'>read the rules</a>,
+then your invite link is below. Use it before it expires!
+"""
+join_button_text = "CLICK ME OH YEAH JUST LIKE THAT"
+join_link_valid_minutes = 1
+default_invite_chat = "furcast"
+
+# Also HTML.
+# Available {variables}: escaped_fname
+rate_limit_template = """
+Sorry, too many people have tried to join that group recently. Try again later.
+"""
+
+# DEBUG/INFO/WARNING/ERROR/CRITICAL
+log_level = "DEBUG"
+
+
+[chats]
+# Each chat must have an id=NumericChatID, and may have:
+# join_link = "https://t.me/+foobar" [for unpriv operation. not implemented]
+# rate_limit_delay_minutes = 10
+# topic_approval_chat = "chat_slug"
+# topic_approval_required = true|false (default true)
+# next_show_default = "show_slug"
+
+[chats.xbn]
+id = -1001170434051
+
+[chats.xbn_chatops]
+id = -1001498895240
+
+[chats.furcast]
+id = -1001462860928
+admin_chat = "xbn_chatops"
+rate_limit_delay_minutes = 10
+topic_approval_chat = "xbn_chatops"
+next_show_default = "fnt"
+
+[chats.riley_test_channel]
+id = -1001263448135
+
+[chats.riley_test_group]
+id = -1001422900025
+admin_chat = "riley_test_group"
+rate_limit_delay_minutes = 10
+topic_approval_chat = "riley_test_channel"
+next_show_default = "fnt"
+
+[chats.xana_ts]
+id = -1001195641999
+topic_approval_required = false
+
+
+[shows]
+
+[shows.fc]
+name = "FurCast"
+domain = "furcast.fm"
+aliases = [ "furcast" ]
+
+[shows.fnt]
+name = "Friday Night Tracks"
+domain = "fridaynighttracks.com"
+aliases = [ "fridaynighttracks", "fridaynighttech" ]
+
+[shows.dd]
+name = "Disc Dive"
+domain = "discdive.com"
+aliases = [ "discdive", "diskdive" ]
+
+[shows.test]
+name = "Test Show"
+domain = "example.local"
+aliases = [ "testshow", "showtest" ]
+
+
+[announce]
+# Array of groups to post to. Posts in first, forwards to subsequent.
+fc = [ "xbn", "furcast" ]
+fc-np = [ "furcast" ]
+fnt = [ "xbn", "furcast" ]
+fnt-np = [ "furcast" ]
+dd = [ "xbn", "furcast" ]
+dd-np = [ "furcast" ]
+test = [ "riley_test_channel", "riley_test_group" ]
+test-np = [ "riley_test_group" ]
+
+
+[timezones]
+"America/New_York" = [ "eastern", "edt", "est", "et" ]
+"Pacific/Auckland" = [ "nzst", "nzdt", "nzt" ]
+"Australia/Sydney" = [ "aest", "aedt", "aet" ]
+
+# vim: syntax=toml

@@ -38,7 +38,7 @@ version - Print the source link and GCF version if available
 * Create a channel with the @ you want, eg. `@furcastfm`, and write a message
   instructing users to talk to the bot for entry to the group.
 * If using poll bot, assuming linux account name is `bots`:
-  * Copy .env.example to .env and edit
+  * Copy config.toml.example to config.toml and edit
   * `virtualenv -p python3 venv`
   * `. venv/bin/activate`
   * `pip install --upgrade .`

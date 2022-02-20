@@ -2,21 +2,23 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from datetime import datetime
 from datetime import timedelta
 from datetime import timezone
 from html import escape
 import logging
 import os
+from typing import Dict, List, Tuple
 
 from dateutil import tz
 from ddate.base import DDate
-from dotenv import load_dotenv
 from flask import make_response, Request, Response
 import requests
 from telegram import (
     Bot,
     Chat,
+    ChatInviteLink,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     ParseMode,
@@ -33,113 +35,76 @@ from telegram.ext import (
     MessageHandler,
     Updater,
 )
+from tomlkit.toml_file import TOMLFile
 
-load_dotenv()
-if "TELEGRAM_TOKEN" not in os.environ or "APIKEY" not in os.environ:
-    logging.error("You forgot to set one of the environment vars!")
-    exit(3)
-
-# Parsed as HTML - be sure to escape anything you put in!
-join_template = (
-    "Hello, {escaped_fname}! Please "
-    "<a href='https://furcast.fm/chat/#rules'>read the rules</a>, "
-    "then your invite link is below. Use it before it expires!"
-)
-rate_limit_template = (
-    "Sorry, {escaped_fname}, too many people have tried to join that group recently. "
-    "Try again later."
-)
-
-button_text = "CLICK ME OH YEAH JUST LIKE THAT"
-next_show_default = "fnt"
+config_file = os.environ.get("CONFIG", os.path.join(os.getcwd(), "config.toml"))
+config: dict
+chat_map: Dict[str, dict]
+managed_chats: Dict[str, List[str]]
+timezones: Dict[str, str]
+join_rate_limit_delay: Dict[str, timedelta]
 
 
-class Chats(object):
-    xbn = -1001170434051
-    xbn_chatops = -1001498895240
-    furcast = -1001462860928
-    riley_test_channel = -1001263448135
-    riley_test_group = -1001422900025
-    xana_ts = -1001195641999
+def load_config(file):
+    new_config = TOMLFile(file).read()
+
+    # show slugs and copy show references to alias names
+    for slug, show in new_config["shows"].items():
+        show["slug"] = slug
+        new_config["shows"] = {
+            alias: show for alias in show.get("aliases", [])
+        } | new_config["shows"]
+
+    # chat slugs
+    for slug, chat in new_config["chats"].items():
+        chat["slug"] = slug
+
+    # chat ID -> chat object
+    new_chat_map = {chat["id"]: chat for chat in new_config["chats"].values()}
+
+    # admin chat ID -> [managed chat names]
+    new_managed_chats = {}
+    for name, chat in new_config["chats"].items():
+        if "admin_chat" not in chat:
+            continue
+        admin_chat_id = new_config["chats"][chat["admin_chat"]]["id"]
+        if admin_chat_id not in new_managed_chats:
+            new_managed_chats[admin_chat_id] = []
+        new_managed_chats[admin_chat_id].append(name)
+
+    # timezone alias -> canonical timezone name
+    new_timezones = {}
+    for canonical, aliases in new_config["timezones"].items():
+        new_timezones |= {alias: canonical for alias in aliases}
+
+    new_join_delay = {
+        chat["id"]: timedelta(minutes=chat.get("rate_limit_delay_minutes", 0))
+        for chat in new_config["chats"].values()
+    }
+
+    global config, chat_map, managed_chats, timezones, join_rate_limit_delay
+    config, chat_map, managed_chats, timezones, join_rate_limit_delay = (
+        new_config,
+        new_chat_map,
+        new_managed_chats,
+        new_timezones,
+        new_join_delay,
+    )
 
 
-# The shortest delay into the future it will let you pick is 5 seconds.
-join_link_expiry_delta = timedelta(minutes=1, seconds=5)
+load_config(config_file)
+
 # List of (telegram.ChatInviteLink, chat_id) because revoking an invite link
 # requires both the URL and the chat ID, and the ChatInviteLink object doesn't
 # contain the chat ID.
-join_link_list = []
-join_ratelimit_min = timedelta(minutes=10)
-join_ratelimit_active = {
-    Chats.furcast: True,
-}
-# If you don't specify a timezone, you'll get errors related to subtracting
-# timezone-aware and timezone-naive datetime objects.
-join_ratelimit_last_join = {
-    Chats.furcast: datetime(1970, 1, 1, 0, 0, 0, 0, tzinfo=timezone.utc),
-}
+join_link_list: List[Tuple[ChatInviteLink, str]] = []
+join_rate_limit_last_join: Dict[str, datetime] = defaultdict(
+    lambda: datetime(1970, 1, 1, 0, 0, 0, 0, tzinfo=timezone.utc)
+)
 
-group_ids = {  # Array of groups to post to. Posts in first, forwards to subsequent.
-    "fc": [Chats.xbn, Chats.furcast],
-    "fc-np": [Chats.furcast],
-    "fnt": [Chats.xbn, Chats.furcast],
-    "fnt-np": [Chats.furcast],
-    "dd": [Chats.xbn, Chats.furcast],
-    "dd-np": [Chats.furcast],
-    "mp": [Chats.xbn, Chats.furcast],
-    "mp-np": [Chats.furcast],
-    "test": [Chats.riley_test_channel, Chats.riley_test_group],
-    "test-np": [Chats.riley_test_group],
-}
-domains = {
-    "fc": "furcast.fm",
-    "furcast": "furcast.fm",
-    "fnt": "fridaynighttracks.com",
-    "fridaynighttracks": "fridaynighttracks.com",
-    "fridaynighttech": "fridaynighttracks.com",
-    "dd": "discdive.com",
-    "discdive": "discdive.com",
-    "diskdive": "discdive.com",
-    "mp": "maestropaws.com",
-    "maestropaws": "maestropaws.com",
-    "test": "example.com",
-}
-show_names = {
-    "furcast.fm": "FurCast",
-    "fridaynighttracks.com": "Friday Night Tracks",
-    "discdive.com": "Disc Dive",
-    "maestropaws.com": "MaestroPaws",
-    "example.com": "Example Show",
-}
-# Channels to allow /topic requests - None = no approval required
-allow_topics = {
-    Chats.xana_ts: None,
-    Chats.furcast: Chats.xbn_chatops,
-    Chats.riley_test_group: Chats.riley_test_channel,
-}
-
-timezones = {  # Additional mappings
-    "eastern": "America/New_York",
-    "edt": "America/New_York",
-    "est": "America/New_York",
-    "et": "America/New_York",
-    "nzst": "Pacific/Auckland",
-    "nzdt": "Pacific/Auckland",
-    "nzt": "Pacific/Auckland",
-    "aest": "Australia/Sydney",
-    "aedt": "Australia/Sydney",
-    "aet": "Australia/Sydney",
-}
-
-invite_chat = Chats.furcast
-admin_chat = Chats.xbn_chatops
-
-join_link = os.environ.get("JOIN_LINK")
-apikey = os.environ["APIKEY"]
-
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=getattr(logging, config.get("log_level", "INFO")))
 logging.getLogger("telegram").setLevel(logging.INFO)
-logging.getLogger("JobQueue").setLevel(logging.INFO)
+logging.getLogger("apscheduler").setLevel(logging.INFO)
 
 bot: Bot
 dispatcher: Dispatcher
@@ -147,7 +112,7 @@ updater: Updater
 flask = "X_GOOGLE_FUNCTION_VERSION" in os.environ
 if flask:
     logging.info("Running in flask")
-    bot = Bot(token=os.environ["TELEGRAM_TOKEN"])
+    bot = Bot(token=config["telegram_token"])
     dispatcher = Dispatcher(bot, None, workers=0, use_context=True)
 
 
@@ -170,24 +135,26 @@ def post_pin(
 ) -> Response:
     """Post a message to a group, pin/unpin
     :bot: The telegram Bot object
-    :group: The group slug, ie "fc", to match group_ids entry
+    :group: The group slug, ie "fc", to match ``announce`` entry
     :message: None, or the message to post
     :pin: None or True/False, whether or not to quiet-pin in first chat
     :notify: True/False, enable notify for channel messages
     :forward: True/False, forward from the first chat to the others
     """
 
-    if group not in group_ids:
+    if group not in config["announce"]:
         return make_response({"status": "Error", "message": "Unknown group"}, 400)
+
+    announce_list = config["announce"][group]
 
     if message is not None:
         root_message = bot.send_message(
-            group_ids[group][0], message, disable_notification=not notify
+            announce_list[0], message, disable_notification=not notify
         )
-        sent_messages = {group_ids[group][0]: root_message}
+        sent_messages = {announce_list[0]: root_message}
 
         if forward:
-            for target_chat_id in group_ids[group][1:]:
+            for target_chat_id in announce_list[1:]:
                 sent_messages[target_chat_id] = bot.forward_message(
                     target_chat_id,
                     root_message.chat_id,
@@ -198,7 +165,7 @@ def post_pin(
         if notify is True and pin is not False:  # quiet-pin in all chats
             for chat_id, message in sent_messages.items():
                 # Don't pin in channels / first-groups
-                if chat_id == group_ids[group][0]:
+                if chat_id == announce_list[0]:
                     continue
                 try:
                     bot.pin_chat_message(
@@ -209,7 +176,7 @@ def post_pin(
                     logging.warning("Pin failed in %s: %s", chat_id, e)
 
     if pin is False:
-        for chat_id in group_ids[group]:
+        for chat_id in announce_list:
             try:
                 bot.unpin_chat_message(chat_id)
             except telegram.error.BadRequest as e:
@@ -259,25 +226,28 @@ def post_np_group(group_id: int, text: str, oneshot: bool = False) -> None:
                 raise e
 
 
-def post_np(title: str, show: str) -> None:
+def post_np(title: str, show_slug: str) -> None:
     """Creates/updates pin for Now Playing
     Called by Gelo
     """
 
-    logging.debug("Now playing on %r: %r", show, title)
+    logging.debug("Now playing on %r: %r", show_slug, title)
 
-    if show not in group_ids:
+    if show_slug not in config["announce"]:
         return make_response({"status": "Error", "error": "Unknown show slug"}, 404)
 
-    text = f"Now playing: {title}\n🎵 {show_names[domains[show]]} is live!\n"
-    if show != "dd":
-        text += f"📺 <a href='https://{domains[show]}/video/'>Watch</a> "
-    text += (
-        f"🎧 <a href='https://{domains[show]}/audio/'>Listen</a> "
-        f"💬 <a href='https://{domains[show]}/chat/'>Chat</a> "
-    )
+    show = config["shows"][show_slug]
 
-    groups = group_ids.get(show + "-np")
+    text = "Now playing: {title}\n🎵 {show_name} is live!\n"
+    if show != "dd":
+        text += "📺 <a href='https://{domain}/video/'>Watch</a> "
+    text += (
+        "🎧 <a href='https://{domain}/audio/'>Listen</a> "
+        "💬 <a href='https://{domain}/chat/'>Chat</a> "
+    )
+    text = text.format(title=title, show_name=show["name"], domain=show["domain"])
+
+    groups = config["announce"].get(show_slug + "-np")
     if groups is None:
         return make_response(
             {"status": "Error", "error": "No now-playing chat for show"}, 200
@@ -286,7 +256,7 @@ def post_np(title: str, show: str) -> None:
         try:
             post_np_group(group_id, text)
         except Exception as e:
-            logging.error("post_np failed: %s: %s", show, e)
+            logging.error("post_np failed: %s: %s", show_slug, e)
             raise e
 
         # context.bot.unpin_chat_message(chat.id)
@@ -301,12 +271,13 @@ def next_pin_callback(context: CallbackContext) -> None:
 
     ctx = context.job.context
     logging.debug("Running next-pin job for %s (%s)", ctx["chat"].title, ctx["chat"].id)
+    show = config["shows"][ctx["slug"]]
     delta = ctx["showtime"] - datetime.now(tz=timezone.utc)
 
     if delta.total_seconds() < 0:
         context.job.schedule_removal()
         text = "<a href='https://{}/'>{}</a> is starting!".format(
-            domains[ctx["slug"]], show_names[domains[ctx["slug"]]]
+            show["domain"], show["name"]
         )
         ctx["message"].edit_text(
             text, parse_mode=ParseMode.HTML, disable_web_page_preview=True
@@ -329,8 +300,8 @@ def next_pin_callback(context: CallbackContext) -> None:
     minutes = (delta.seconds // 60) % 60
     minutestr = str(minutes) + (" minute" if minutes == 1 else " minutes")
     text = "<a href='https://{}/'>{}</a> starts in {}{}{}".format(
-        domains[ctx["slug"]],
-        show_names[domains[ctx["slug"]]],
+        show["domain"],
+        show["name"],
         daystr,
         hourstr,
         minutestr,
@@ -372,14 +343,13 @@ def nextshow(update: Update, context: CallbackContext) -> None:
     args = update.message.text.split(" ")
 
     # Which show
-    if len(args) < 2:
-        slug = next_show_default
-    elif args[1].lower() in domains:
+    if len(args) > 1 and args[1].lower() in config["shows"]:
         slug = args[1].lower()
     else:
-        slug = next_show_default
+        slug = chat_map[update.effective_chat.id]["next_show_default"]
         args.insert(1, "")  # reverse shift to offer timezone
-    domain = domains[slug.lower()]
+    show = config["shows"][slug]
+    domain = show["domain"]
 
     try:
         r = requests.get("https://{}/nextshow/".format(domain))
@@ -411,7 +381,7 @@ def nextshow(update: Update, context: CallbackContext) -> None:
         updater.job_queue.run_repeating(
             next_pin_callback,
             60,
-            0,
+            1,  # 0 results in no first-run, probably a library bug...
             context=ctx,
             name=f"next_pin_{update.effective_chat.id}",
         )
@@ -453,7 +423,7 @@ def nextshow(update: Update, context: CallbackContext) -> None:
     )
     update.effective_chat.send_message(
         text="The next {} is {}. That's {} from now.".format(
-            show_names[domain], datestr, deltastr
+            show["name"], datestr, deltastr
         )
     )
 
@@ -482,6 +452,9 @@ def report(update: Update, context: CallbackContext) -> None:
             text="Reporting messages in PMs isn't done yet; for now please PM an admin directly."
         )
     else:
+        if "admin_chat" not in chat_map[update.effective_chat.id]:
+            update.message.reply_text("Sorry, that's not configured for this group.")
+            return
         if update.message is None or update.message.reply_to_message is None:
             update.message.reply_text(
                 text="Please reply to the message you want to report."
@@ -491,6 +464,9 @@ def report(update: Update, context: CallbackContext) -> None:
             summon_link = update.message.link
             reply_link = update.message.reply_to_message.link
             escaped_report_text = escape(update.message.text)
+            admin_chat = config["chats"][
+                chat_map[update.effective_chat.id]["admin_chat"]
+            ]["id"]
             update.message.reply_to_message.forward(admin_chat)
             context.bot.send_message(
                 admin_chat,
@@ -507,8 +483,23 @@ def replace_invite_link(update: Update, context: CallbackContext) -> None:
     Replaces bot's invite link for {invite_chat}
     NOTE: Each admin has a DIFFERENT INVITE LINK."""
 
-    if update.effective_chat.id != admin_chat:
-        update.message.reply_text("Unauthorized")
+    if update.effective_chat.id not in managed_chats:
+        return
+
+    args = update.message.text.split(" ")
+    target = None
+    managed = managed_chats.get(update.effective_chat.id, [])
+    if len(args) < 2:
+        if len(managed) == 1:
+            target = managed[0]
+    else:
+        if args[1].lower() in managed:
+            target = args[1].lower()
+    if not target:
+        update.message.reply_text(
+            "Chat slug missing or invalid. You can act on these chats: "
+            + ", ".join(managed)
+        )
         return
 
     logging.info(
@@ -520,7 +511,9 @@ def replace_invite_link(update: Update, context: CallbackContext) -> None:
     # Regenerate the bot's own invite link, just in case.
     bot_join_link_rerolled = False
     try:
-        bot_join_link = updater.bot.export_chat_invite_link(invite_chat)
+        bot_join_link = updater.bot.export_chat_invite_link(
+            config["chats"][target]["id"]
+        )
         if bot_join_link is None:
             raise Exception("exportChatInviteLink returned None")
         logging.info("New bot invite link: %s", bot_join_link)
@@ -533,10 +526,20 @@ def replace_invite_link(update: Update, context: CallbackContext) -> None:
 
     reply_text += "\n"
     # Revoke all of the per-user invite links that the bot has issued.
-    global join_link_list
     error_count = 0
+    removed_count = 0
+    new_join_link_list = []
+    global join_link_list
     for link, chat_id in join_link_list:
+        if chat_id != config["chats"][target]["id"]:
+            new_join_link_list.append((link, chat_id))
+            continue
         try:
+            logging.info(
+                "Revoking invite link for %s: %s",
+                chat_map[chat_id]["slug"],
+                link.invite_link,
+            )
             revoked_link = updater.bot.revoke_chat_invite_link(
                 chat_id, link.invite_link
             )
@@ -545,14 +548,15 @@ def replace_invite_link(update: Update, context: CallbackContext) -> None:
                     "Somehow %s didn't get revoked?", revoked_link.invite_link
                 )
                 error_count += 1
+            removed_count += 1
         except Exception as e:
             logging.error(
                 "Revocation failed for %s with error: %s", link.invite_link, e
             )
             error_count += 1
-    join_link_list = []
+    join_link_list = new_join_link_list  # Probably a race condition
     if error_count < 1:
-        reply_text += "(2/2) Success. All per-user links revoked."
+        reply_text += "(2/2) Success. {} per-user links revoked.".format(removed_count)
     else:
         reply_text += (
             "(2/2) Per-user invite link revocation failed for %d links. See logs for details."
@@ -564,20 +568,20 @@ def replace_invite_link(update: Update, context: CallbackContext) -> None:
 def start(update: Update, context: CallbackContext) -> None:
     """Bot /start callback
     Gives user invite link button"""
-    chat_to_join = Chats.furcast
+    chat_to_join = config["chats"][config["default_invite_chat"]]
     current_timestamp = datetime.now(tz=timezone.utc)
 
     # Ignore messages that aren't PMed to the bot.
     if update.effective_chat.type != "private":
         return
     # If join rate limits are enabled, throttle joins to prevent join flooding.
-    if join_ratelimit_active[chat_to_join]:
-        logging.debug("rate limiting is active for chat %s", chat_to_join)
+    if chat_map[chat_to_join["id"]].get("rate_limit_delay_minutes", 0) > 0:
+        logging.debug("rate limiting is active for chat %s", chat_to_join["slug"])
         time_since_last_join = (
-            current_timestamp - join_ratelimit_last_join[chat_to_join]
+            current_timestamp - join_rate_limit_last_join[chat_to_join["id"]]
         )
         user_status = context.bot.get_chat_member(
-            chat_to_join, update.effective_user.id
+            chat_to_join["id"], update.effective_user.id
         )
         # user_status.LEFT is "they are not a member, but can join on their own"
         # This means that people who are banned are also excluded from joining
@@ -589,7 +593,7 @@ def start(update: Update, context: CallbackContext) -> None:
                 update.effective_user.username,
                 update.effective_user.full_name,
                 update.effective_user.id,
-                chat_to_join,
+                chat_to_join["slug"],
             )
             update.message.reply_text(
                 "Hey wait a second, you're already a member of that chat! No links "
@@ -599,51 +603,57 @@ def start(update: Update, context: CallbackContext) -> None:
         logging.debug(
             "it has been %s since the last permitted join", time_since_last_join
         )
-        if time_since_last_join < join_ratelimit_min:
+        if time_since_last_join < join_rate_limit_delay[chat_to_join["id"]]:
             logging.info(
                 "Denying join by %s (%s, %s) to %s due to rate limit",
                 update.effective_user.username,
                 update.effective_user.full_name,
                 update.effective_user.id,
-                chat_to_join,
+                chat_to_join["slug"],
             )
             update.message.reply_html(
-                text=rate_limit_template.format(
+                text=config["rate_limit_template"].format(
                     escaped_fname=escape(update.message.from_user.first_name)
                 ),
                 disable_web_page_preview=True,
             )
             return
-        join_ratelimit_last_join[chat_to_join] = current_timestamp
+        join_rate_limit_last_join[chat_to_join["id"]] = current_timestamp
     logging.info(
         "Inviting %s (%s, %s) to %s",
         update.effective_user.username,
         update.effective_user.full_name,
         update.effective_user.id,
-        chat_to_join,
+        chat_to_join["slug"],
     )
     # Create custom invite link for this user, which limits how many times the
     # link can be used (to help prevent spam/abuse).
     try:
-        expiry_date = current_timestamp + join_link_expiry_delta
+        # 5 second minimum
+        expiry_date = current_timestamp + timedelta(
+            minutes=config.get("join_link_valid_minutes", 10), seconds=5
+        )
         logging.debug(
-            "Creating join link for %s that expires at %s", chat_to_join, expiry_date
+            "Creating join link for %s that expires at %s",
+            chat_to_join["slug"],
+            expiry_date,
         )
         custom_join_link = context.bot.create_chat_invite_link(
-            chat_to_join,
+            chat_to_join["id"],
             expire_date=expiry_date,
             member_limit=1,
         )
-        join_link_list.append((custom_join_link, chat_to_join))
+        join_link_list.append((custom_join_link, chat_to_join["id"]))
         update.message.reply_html(
-            text=join_template.format(
+            text=config["join_template"].format(
                 escaped_fname=escape(update.message.from_user.first_name)
             ),
             reply_markup=InlineKeyboardMarkup(
                 [
                     [
                         InlineKeyboardButton(
-                            text=button_text, url=custom_join_link.invite_link
+                            text=config.get("join_button_text", "Join"),
+                            url=custom_join_link.invite_link,
                         )
                     ]
                 ]
@@ -679,15 +689,14 @@ def topic(update: Update, context: CallbackContext) -> None:
         requested = parts[1].strip()
 
     # Unrestricted chat, or admin
+    chat = chat_map[update.effective_chat.id]
     user = update.effective_chat.get_member(update.effective_user.id)
     if (
-        (
-            update.effective_chat.id in allow_topics
-            and allow_topics[update.effective_chat.id] is None
-        )
+        not chat.get("topic_approval_required", True)
         # No reason to require full can_change_info for this.
         # Chatops have can_delete_messages, so let's use that.
         or user.can_delete_messages
+        # I have no idea why being the creator doesn't imply that perm
         or user.status == "creator"
     ):
         logging.info(
@@ -707,19 +716,18 @@ def topic(update: Update, context: CallbackContext) -> None:
                     e,
                 )
         topic_set(context.bot, update.effective_chat, requested)
-        if update.effective_chat.id in allow_topics:
+        if "topic_approval_chat" in chat:
             mention = update.message.from_user.mention_html()
             link = update.message.link
             context.bot.send_message(
-                allow_topics[update.effective_chat.id],
+                config["chats"][chat["topic_approval_chat"]]["id"],
                 f'{mention} <a href="{link}">set</a> topic "{requested}"\n',
                 parse_mode=ParseMode.HTML,
                 disable_notification=True,
             )
         return
 
-    if update.effective_chat.id in allow_topics:
-
+    if "topic_approval_chat" in chat:
         mention = update.message.from_user.mention_html()
         link = update.message.link
         callback_data = ",{},{},{},{}".format(
@@ -732,7 +740,7 @@ def topic(update: Update, context: CallbackContext) -> None:
             update.message.reply_text("Sorry, that's too long.")
             return
         context.bot.send_message(
-            allow_topics[update.effective_chat.id],
+            config["chats"][chat["topic_approval_chat"]]["id"],
             (
                 f'{mention} <a href="{link}">proposed</a> topic "{requested}"\n'
                 "Admins can accept, admins or op can reject:"
@@ -752,7 +760,8 @@ def topic(update: Update, context: CallbackContext) -> None:
             ),
             disable_notification=True,
         )
-        update.message.reply_text(f'Requested topic "{requested}"')
+        if chat["topic_approval_chat"] != chat["slug"]:
+            update.message.reply_text(f'Requested topic "{requested}"')
         return
 
 
@@ -777,13 +786,18 @@ def button(update: Update, context: CallbackContext) -> None:
             (update.effective_user.id == user_id and action == "tr")
             # Chatops in the /topic'd chat can approve (see topic() note)
             or user.can_delete_messages
+            # I have no idea why being the creator doesn't imply that perm
             or user.status == "creator"
             # Admin group approval: allow anyone
-            or update.effective_chat.id == allow_topics[chat_id]
+            or (
+                update.effective_chat.id != chat_id
+                and update.effective_chat.id
+                == config["chats"][chat_map[chat_id]["topic_approval_chat"]]["id"]
+            )
         ):
             update.callback_query.answer(text="Nice try")
             return
-        logging.info(
+        logging.debug(
             "%s: %s: %s bytes: %s",
             update.effective_chat.title,
             update.effective_user.username,
@@ -794,7 +808,10 @@ def button(update: Update, context: CallbackContext) -> None:
         # Buttons
         if action == "ta":
             topic_set(context.bot, context.bot.get_chat(chat_id), requested)
-            if allow_topics[chat_id] != chat_id:
+            if (
+                chat_id
+                != config["chats"][chat_map[chat_id]["topic_approval_chat"]]["id"]
+            ):
                 context.bot.send_message(
                     chat_id, "Accepted!", reply_to_message_id=message_id
                 )
@@ -856,13 +873,16 @@ def webhook(request: Request):
     logging.info("args: %s", request.args)
     logging.info("data: %s", request.data)
     logging.info("form: %s", request.form)
-    if request.args.get("apikey") != apikey and request.form.get("apikey") != apikey:
+    if "api_key" not in config or (
+        request.args.get("apikey") != config["api_key"]
+        and request.form.get("apikey") != config["api_key"]
+    ):
         return make_response("", 404)
     if "version" in request.args:
         return str(os.environ.get("X_GOOGLE_FUNCTION_VERSION")) + "\n"
     if "title" in request.form:
         return post_np(request.form["title"], request.form.get("show"))
-    if request.form.get("group") in group_ids:
+    if request.form.get("group") in config["announce"]:
         pin = request.form.get("pin")
         if pin in ["true", "1"]:
             pin = True
@@ -885,7 +905,7 @@ def webhook(request: Request):
 def main():
     global bot, dispatcher, updater
     logging.info("Running standalone")
-    updater = Updater(token=os.environ["TELEGRAM_TOKEN"], use_context=True)
+    updater = Updater(token=config["telegram_token"], use_context=True)
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(CommandHandler("chatinfo", chatinfo))

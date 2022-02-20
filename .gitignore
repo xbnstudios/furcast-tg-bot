@@ -14,3 +14,5 @@ Pipfile
 Pipfile.lock
 
 .idea/
+
+config.toml
