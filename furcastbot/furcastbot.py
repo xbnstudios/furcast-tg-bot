@@ -23,6 +23,7 @@ from telegram import (
     Update,
 )
 import telegram.error
+import telegram.constants
 from telegram.ext import (
     CallbackContext,
     CallbackQueryHandler,
@@ -457,6 +458,19 @@ def nextshow(update: Update, context: CallbackContext) -> None:
     )
 
 
+def report_mention_wrapper(update: Update, context: CallbackContext) -> None:
+    """Bot @admin callback
+    Given a message which has an @mention in it, see if that @mention is for
+    @admin or @admins, and then do the /report callback.
+    """
+    entities = update.message.parse_entities(
+        types=[telegram.constants.MESSAGEENTITY_MENTION]
+    )
+    for entity, text in entities.items():
+        if text == "@admin" or text == "@admins":
+            return report(update, context)
+
+
 def report(update: Update, context: CallbackContext) -> None:
     """Bot /report callback
     Gives instructions for reporting problems
@@ -886,7 +900,13 @@ def main():
     dispatcher.add_handler(CommandHandler("topic", topic))
     dispatcher.add_handler(CommandHandler("stopic", topic))
     dispatcher.add_handler(CommandHandler("version", version))
-    dispatcher.add_handler(MessageHandler(Filters.regex(r"\b@admins?\b"), report))
+    dispatcher.add_handler(
+        MessageHandler(
+            Filters.entity(telegram.constants.MESSAGEENTITY_MENTION)
+            & Filters.update.message,
+            report_mention_wrapper,
+        )
+    )
     dispatcher.add_handler(CallbackQueryHandler(button))
 
     # Get current bot invite link
