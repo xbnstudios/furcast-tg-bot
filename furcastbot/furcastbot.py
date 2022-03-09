@@ -388,7 +388,7 @@ def nextshow(update: Update, context: CallbackContext) -> None:
     except Exception as e:
         update.message.reply_text(text="Error: " + str(e))
         raise e
-    showtime = datetime.utcfromtimestamp(int(r.text))
+    showtime = datetime.fromtimestamp(int(r.text), tz=timezone.utc)
 
     # Start update job
     if "pin" in args:
