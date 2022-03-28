@@ -523,15 +523,13 @@ def replace_invite_link(update: Update, context: CallbackContext) -> None:
         bot_join_link = updater.bot.export_chat_invite_link(invite_chat)
         if bot_join_link is None:
             raise Exception("exportChatInviteLink returned None")
-        global join_link
-        join_link = bot_join_link
-        logging.info("New bot invite link: %s", join_link)
+        logging.info("New bot invite link: %s", bot_join_link)
         bot_join_link_rerolled = True
     except Exception as e:
         logging.error("Invite link rotation failed: %s", e)
         reply_text += "(1/2) Invite link rotation failed: " + str(e)
     if bot_join_link_rerolled:
-        reply_text += "(1/2) Success. Bot's invite link re-rolled."
+        reply_text += "(1/2) Bot's invite link rotated."
 
     reply_text += "\n"
     # Revoke all of the per-user invite links that the bot has issued.
@@ -908,25 +906,6 @@ def main():
         )
     )
     dispatcher.add_handler(CallbackQueryHandler(button))
-
-    # Get current bot invite link
-    try:
-        chat = updater.bot.get_chat(invite_chat)
-        bot_join_link = chat.invite_link
-    except Exception as e:
-        logging.info("Failed to get invite link: %s", e)
-        bot_join_link = None
-
-    if bot_join_link is None:
-        logging.info("Generating new bot invite link...")
-        try:
-            bot_join_link = updater.bot.export_chat_invite_link(invite_chat)
-        except Exception as e:  # Probably no rights
-            logging.warning("Unable to generate bot invite link: %s", e)
-            pass
-    if bot_join_link is not None:
-        global join_link
-        join_link = bot_join_link
 
     # Start responding
     updater.start_polling()
