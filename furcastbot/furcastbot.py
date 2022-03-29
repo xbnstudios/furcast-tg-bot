@@ -570,6 +570,7 @@ def start(update: Update, context: CallbackContext) -> None:
     Gives user invite link button"""
     chat_to_join = config["chats"][config["default_invite_chat"]]
     current_timestamp = datetime.now(tz=timezone.utc)
+    user = update.effective_user
 
     # Ignore messages that aren't PMed to the bot.
     if update.effective_chat.type != "private":
@@ -580,9 +581,7 @@ def start(update: Update, context: CallbackContext) -> None:
         time_since_last_join = (
             current_timestamp - join_rate_limit_last_join[chat_to_join["id"]]
         )
-        user_status = context.bot.get_chat_member(
-            chat_to_join["id"], update.effective_user.id
-        )
+        user_status = context.bot.get_chat_member(chat_to_join["id"], user.id)
         # user_status.LEFT is "they are not a member, but can join on their own"
         # This means that people who are banned are also excluded from joining
         # through the bot (with a somewhat confusing error).
@@ -590,9 +589,9 @@ def start(update: Update, context: CallbackContext) -> None:
             logging.info(
                 "Denying join by %s (%s, %s) to %s because they're already a member "
                 "or were banned",
-                update.effective_user.username,
-                update.effective_user.full_name,
-                update.effective_user.id,
+                user.username,
+                user.full_name,
+                user.id,
                 chat_to_join["slug"],
             )
             update.message.reply_text(
@@ -606,14 +605,14 @@ def start(update: Update, context: CallbackContext) -> None:
         if time_since_last_join < join_rate_limit_delay[chat_to_join["id"]]:
             logging.info(
                 "Denying join by %s (%s, %s) to %s due to rate limit",
-                update.effective_user.username,
-                update.effective_user.full_name,
-                update.effective_user.id,
+                user.username,
+                user.full_name,
+                user.id,
                 chat_to_join["slug"],
             )
             update.message.reply_html(
                 text=config["rate_limit_template"].format(
-                    escaped_fname=escape(update.message.from_user.first_name)
+                    escaped_fname=escape(user.first_name)
                 ),
                 disable_web_page_preview=True,
             )
@@ -621,9 +620,9 @@ def start(update: Update, context: CallbackContext) -> None:
         join_rate_limit_last_join[chat_to_join["id"]] = current_timestamp
     logging.info(
         "Inviting %s (%s, %s) to %s",
-        update.effective_user.username,
-        update.effective_user.full_name,
-        update.effective_user.id,
+        user.username,
+        user.full_name,
+        user.id,
         chat_to_join["slug"],
     )
     # Create custom invite link for this user, which limits how many times the
@@ -638,16 +637,16 @@ def start(update: Update, context: CallbackContext) -> None:
             chat_to_join["slug"],
             expiry_date,
         )
+        user_reference = ("@" + user.username) if user.username else user.full_name
         custom_join_link = context.bot.create_chat_invite_link(
             chat_to_join["id"],
             expire_date=expiry_date,
             member_limit=1,
+            name=f"{user.id} {user_reference}",
         )
         join_link_list.append((custom_join_link, chat_to_join["id"]))
         update.message.reply_html(
-            text=config["join_template"].format(
-                escaped_fname=escape(update.message.from_user.first_name)
-            ),
+            text=config["join_template"].format(escaped_fname=escape(user.first_name)),
             reply_markup=InlineKeyboardMarkup(
                 [
                     [
