@@ -610,9 +610,10 @@ def start(update: Update, context: CallbackContext) -> None:
                 chat_to_join["slug"],
             )
             update.message.reply_html(
-                text=config["rate_limit_template"].format(
-                    escaped_fname=escape(user.first_name)
-                ),
+                text=config["rate_limit_template"]
+                .replace("\n", " ")
+                .replace("<br>", "\n")
+                .format(escaped_fname=escape(user.first_name)),
                 disable_web_page_preview=True,
             )
             return
@@ -646,7 +647,10 @@ def start(update: Update, context: CallbackContext) -> None:
         )
         join_link_list.append((custom_join_link.invite_link, chat_to_join["id"]))
         update.message.reply_html(
-            text=config["join_template"].format(escaped_fname=escape(user.first_name)),
+            text=config["join_template"]
+            .replace("\n", " ")
+            .replace("<br>", "\n")
+            .format(escaped_fname=escape(user.first_name)),
             reply_markup=InlineKeyboardMarkup(
                 [
                     [
