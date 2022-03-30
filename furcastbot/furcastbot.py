@@ -101,9 +101,10 @@ join_rate_limit_last_join: Dict[str, datetime] = defaultdict(
     lambda: datetime(1970, 1, 1, 0, 0, 0, 0, tzinfo=timezone.utc)
 )
 
-logging.basicConfig(level=getattr(logging, config.get("log_level", "INFO")))
-logging.getLogger("telegram").setLevel(logging.INFO)
-logging.getLogger("apscheduler").setLevel(logging.INFO)
+log_level = getattr(logging, config.get("log_level", "INFO"))
+logging.basicConfig(level=log_level)
+logging.getLogger("telegram").setLevel(max(logging.INFO, log_level))
+logging.getLogger("apscheduler").setLevel(max(logging.INFO, log_level))
 
 bot: Bot
 dispatcher: Dispatcher
