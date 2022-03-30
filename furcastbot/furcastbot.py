@@ -324,7 +324,10 @@ def next_pin_callback(context: CallbackContext) -> None:
                     text, parse_mode=ParseMode.HTML, disable_web_page_preview=True
                 )
             except telegram.error.BadRequest as e:
-                if "exactly the same" not in e.message:
+                if e.message == "Message to edit not found":
+                    logging.debug("Next-show pinned message deleted, removing job")
+                    context.job.schedule_removal()
+                elif "exactly the same" not in e.message:
                     raise e
     except Exception as e:
         logging.error("Next-show job failed: %s: %s", ctx["chat"].id, e)
