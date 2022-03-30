@@ -574,30 +574,30 @@ def start(update: Update, context: CallbackContext) -> None:
     # Ignore messages that aren't PMed to the bot.
     if update.effective_chat.type != "private":
         return
+
+    user_status = context.bot.get_chat_member(chat_to_join["id"], user.id)
+    # user_status.LEFT is "they are not a member, but can join on their own"
+    # This means that people who are banned are also excluded from joining
+    # through the bot (with a somewhat confusing error).
+    if user_status.status != user_status.LEFT:
+        logging.info(
+            "Denying join by %s (@%s, %r) to %s because they're already a member "
+            "or were banned. status=%s",
+            user.id,
+            user.username,
+            user.full_name,
+            chat_to_join["slug"],
+            user_status.status,
+        )
+        update.message.reply_text("You're already in that group!")
+        return
+
     # If join rate limits are enabled, throttle joins to prevent join flooding.
     if chat_map[chat_to_join["id"]].get("rate_limit_delay_minutes", 0) > 0:
         logging.debug("rate limiting is active for chat %s", chat_to_join["slug"])
         time_since_last_join = (
             current_timestamp - join_rate_limit_last_join[chat_to_join["id"]]
         )
-        user_status = context.bot.get_chat_member(chat_to_join["id"], user.id)
-        # user_status.LEFT is "they are not a member, but can join on their own"
-        # This means that people who are banned are also excluded from joining
-        # through the bot (with a somewhat confusing error).
-        if user_status.status != user_status.LEFT:
-            logging.info(
-                "Denying join by %s (%s, %s) to %s because they're already a member "
-                "or were banned",
-                user.username,
-                user.full_name,
-                user.id,
-                chat_to_join["slug"],
-            )
-            update.message.reply_text(
-                "Hey wait a second, you're already a member of that chat! No links "
-                "for you."
-            )
-            return
         logging.debug(
             "it has been %s since the last permitted join", time_since_last_join
         )
