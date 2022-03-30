@@ -616,7 +616,8 @@ def start(update: Update, context: CallbackContext) -> None:
                 disable_web_page_preview=True,
             )
             return
-        join_rate_limit_last_join[chat_to_join["id"]] = current_timestamp
+    join_rate_limit_last_join[chat_to_join["id"]] = current_timestamp
+
     logging.info(
         "Inviting %s (%s, %s) to %s",
         user.username,
