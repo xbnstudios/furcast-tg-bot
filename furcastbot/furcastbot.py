@@ -18,7 +18,6 @@ import requests
 from telegram import (
     Bot,
     Chat,
-    ChatInviteLink,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     ParseMode,
@@ -94,10 +93,9 @@ def load_config(file):
 
 load_config(config_file)
 
-# List of (telegram.ChatInviteLink, chat_id) because revoking an invite link
-# requires both the URL and the chat ID, and the ChatInviteLink object doesn't
-# contain the chat ID.
-join_link_list: List[Tuple[ChatInviteLink, str]] = []
+# List of (invite_link, chat_id) because revoking an invite link
+# requires both the URL and the chat ID
+join_link_list: List[Tuple[str, int]] = []
 join_rate_limit_last_join: Dict[str, datetime] = defaultdict(
     lambda: datetime(1970, 1, 1, 0, 0, 0, 0, tzinfo=timezone.utc)
 )
@@ -478,10 +476,14 @@ def report(update: Update, context: CallbackContext) -> None:
             update.message.reply_text("Thank you; we’re on it.")
 
 
-def replace_invite_link(update: Update, context: CallbackContext) -> None:
+def revoke_invite_links(update: Update, context: CallbackContext) -> None:
     """Bot /newlink callback
-    Replaces bot's invite link for {invite_chat}
-    NOTE: Each admin has a DIFFERENT INVITE LINK."""
+    Revokes all known invite links for target chat
+    NOTES: Each admin has a DIFFERENT INVITE LINK.
+    The bot API does not allow it to fetch a list of links it's created, so
+    it can only revoke ones created since startup or the one fed to it with
+    /newlink CHAT_SLUG INVITE_LINK
+    """
 
     if update.effective_chat.id not in managed_chats:
         return
@@ -502,67 +504,64 @@ def replace_invite_link(update: Update, context: CallbackContext) -> None:
         )
         return
 
+    target_id = config["chats"][target]["id"]
+    specific_link_str = None
+    if len(args) > 2:
+        links = [(link, target_id) for link in args[2:]]
+        specific_link_str = ", ".join(args[2:])
+    else:
+        links = [x for x in join_link_list if x[1] == target_id]
+
     logging.info(
-        "%s (%s) requested invite link rotation",
+        "%s (%s) requested invite link revocation for %s: %s",
         update.effective_user.name,
         update.effective_user.id,
+        target,
+        specific_link_str or "(all)",
     )
+
     reply_text = ""
     # Regenerate the bot's own invite link, just in case.
-    bot_join_link_rerolled = False
-    try:
-        bot_join_link = updater.bot.export_chat_invite_link(
-            config["chats"][target]["id"]
-        )
-        if bot_join_link is None:
-            raise Exception("exportChatInviteLink returned None")
-        logging.info("New bot invite link: %s", bot_join_link)
-        bot_join_link_rerolled = True
-    except Exception as e:
-        logging.error("Invite link rotation failed: %s", e)
-        reply_text += "(1/2) Invite link rotation failed: " + str(e)
-    if bot_join_link_rerolled:
-        reply_text += "(1/2) Bot's invite link rotated."
-
-    reply_text += "\n"
-    # Revoke all of the per-user invite links that the bot has issued.
-    error_count = 0
-    removed_count = 0
-    new_join_link_list = []
-    global join_link_list
-    for link, chat_id in join_link_list:
-        if chat_id != config["chats"][target]["id"]:
-            new_join_link_list.append((link, chat_id))
-            continue
+    if specific_link_str is None:
         try:
-            logging.info(
-                "Revoking invite link for %s: %s",
-                chat_map[chat_id]["slug"],
-                link.invite_link,
+            bot_join_link = updater.bot.export_chat_invite_link(
+                config["chats"][target]["id"]
             )
-            revoked_link = updater.bot.revoke_chat_invite_link(
-                chat_id, link.invite_link
-            )
+            if bot_join_link is None:
+                raise Exception("exportChatInviteLink returned None")
+            logging.info("New bot primary invite link: %s", bot_join_link)
+        except Exception as e:
+            logging.error("Invite link rotation failed: %s", e)
+            reply_text += "Rotation of bot's primary invite link failed: " + str(e)
+        else:
+            reply_text += "Bot's primary invite link rotated."
+
+    # Revoke all of the per-user invite links that the bot has issued.
+    error_links = []
+    removed_count = 0
+    for link_tuple in links:
+        link, chat_id = link_tuple
+        if link_tuple in join_link_list:
+            join_link_list.remove(link_tuple)
+
+        logging.info(
+            "Revoking invite link for %s: %s",
+            chat_map[chat_id]["slug"],
+            link,
+        )
+        try:
+            revoked_link = updater.bot.revoke_chat_invite_link(chat_id, link)
             if not revoked_link.is_revoked:
-                logging.error(
-                    "Somehow %s didn't get revoked?", revoked_link.invite_link
-                )
-                error_count += 1
+                raise Exception("Mysterious failure")
             removed_count += 1
         except Exception as e:
-            logging.error(
-                "Revocation failed for %s with error: %s", link.invite_link, e
-            )
-            error_count += 1
-    join_link_list = new_join_link_list  # Probably a race condition
-    if error_count < 1:
-        reply_text += "(2/2) Success. {} per-user links revoked.".format(removed_count)
-    else:
-        reply_text += (
-            "(2/2) Per-user invite link revocation failed for %d links. See logs for details."
-            % error_count
-        )
-    update.message.reply_text(reply_text)
+            logging.error("Revocation failed for %s with error: %s", link, e)
+            error_links.append(link)
+    reply_text += "\n{} per-user invite links revoked, {} failed.".format(
+        removed_count, len(error_links)
+    )
+    reply_text += "".join(["\nFailed: " + link for link in error_links])
+    update.message.reply_text(reply_text, disable_web_page_preview=True)
 
 
 def start(update: Update, context: CallbackContext) -> None:
@@ -644,7 +643,7 @@ def start(update: Update, context: CallbackContext) -> None:
             member_limit=1,
             name=f"{user.id} {user_reference}",
         )
-        join_link_list.append((custom_join_link, chat_to_join["id"]))
+        join_link_list.append((custom_join_link.invite_link, chat_to_join["id"]))
         update.message.reply_html(
             text=config["join_template"].format(escaped_fname=escape(user.first_name)),
             reply_markup=InlineKeyboardMarkup(
@@ -908,7 +907,7 @@ def main():
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(CommandHandler("chatinfo", chatinfo))
-    dispatcher.add_handler(CommandHandler("newlink", replace_invite_link))
+    dispatcher.add_handler(CommandHandler("newlink", revoke_invite_links))
     dispatcher.add_handler(CommandHandler("next", nextshow))
     dispatcher.add_handler(CommandHandler("report", report))
     dispatcher.add_handler(CommandHandler("admin", report))

@@ -17,7 +17,7 @@ report - Get admin attention. Reply to a message with e.g. "/report Spambot!"
 Don't tell BotFather.
 ```
 chatinfo - List the chat ID
-newlink - (Admin group) Rotate the main group invite link
+newlink [slug] [link [link...]] - (Admin group) Revoke invite link(s)
 next [slug] pin - Pin a continuously updated countdown message
 start - (PM) Request the group invite link. Prompted by TG client.
 stopic - Silently set the topic (delete command message)
