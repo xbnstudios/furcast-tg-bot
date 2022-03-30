@@ -28,6 +28,7 @@ import telegram.error
 from telegram.ext import (
     CallbackContext,
     CallbackQueryHandler,
+    ChatJoinRequestHandler,
     CommandHandler,
     Dispatcher,
     Filters,
@@ -619,33 +620,34 @@ def start(update: Update, context: CallbackContext) -> None:
             return
     join_rate_limit_last_join[chat_to_join["id"]] = current_timestamp
 
-    logging.info(
-        "Inviting %s (%s, %s) to %s",
-        user.username,
-        user.full_name,
-        user.id,
-        chat_to_join["slug"],
-    )
-    # Create custom invite link for this user, which limits how many times the
-    # link can be used (to help prevent spam/abuse).
+    # Create and send link. creates_join_request prevents use of member_limit.
+    # We use the link name to associate it with one user, and revoke it after
+    # use. This avoids issues with links reactivating after the user leaves the
+    # chat again, and issues with the bot forgetting about links between
+    # restarts.
     try:
         # 5 second minimum
         expiry_date = current_timestamp + timedelta(
             minutes=config.get("join_link_valid_minutes", 10), seconds=5
         )
-        logging.debug(
-            "Creating join link for %s that expires at %s",
+        logging.info(
+            "Inviting %s (%s, %s) to %s, link expiry %s",
+            user.username,
+            user.full_name,
+            user.id,
             chat_to_join["slug"],
             expiry_date,
         )
+
         user_reference = ("@" + user.username) if user.username else user.full_name
         custom_join_link = context.bot.create_chat_invite_link(
             chat_to_join["id"],
             expire_date=expiry_date,
-            member_limit=1,
             name=f"{user.id} {user_reference}",
+            creates_join_request=True,
         )
         join_link_list.append((custom_join_link.invite_link, chat_to_join["id"]))
+
         update.message.reply_html(
             text=config["join_template"]
             .replace("\n", " ")
@@ -666,6 +668,54 @@ def start(update: Update, context: CallbackContext) -> None:
     except telegram.error.TelegramError as e:
         logging.info("Could not generate invite link: %s", e)
         update.message.reply_html(text="Uh oh, something went wrong. Poke an admin.")
+
+
+def chat_join_request(update: Update, context: CallbackContext) -> None:
+    request = update.chat_join_request
+
+    if request.invite_link.creator.id != context.bot.id:
+        logging.debug("Ignoring join request via invite link I didn't create")
+        return
+
+    # Revoke and forget link
+    try:
+        revoked_link = updater.bot.revoke_chat_invite_link(
+            request.chat.id, request.invite_link.invite_link
+        )
+        if not revoked_link.is_revoked:
+            raise Exception("Mysterious failure")
+    except Exception as e:
+        logging.error(
+            "Revocation failed for %s with error: %s",
+            request.invite_link.invite_link,
+            e,
+        )
+    else:
+        invite_tuple = (request.invite_link.invite_link, request.chat.id)
+        if invite_tuple in join_link_list:
+            join_link_list.remove(invite_tuple)
+
+    # Approve or decline request
+    request_user_id = int(request.invite_link.name.split(" ", 1)[0])
+    if request_user_id != request.from_user.id:
+        logging.warning(
+            "Declining join request to %s: %s (%s, %s) used a link meant for %s",
+            chat_map[request.chat.id]["slug"],
+            request.from_user.id,
+            request.from_user.username,
+            request.from_user.full_name,
+            request.invite_link.name,
+        )
+        request.decline()
+    else:
+        logging.info(
+            "Approving join request to %s by %s (%s, %s)",
+            chat_map[request.chat.id]["slug"],
+            request.from_user.id,
+            request.from_user.username,
+            request.from_user.full_name,
+        )
+        request.approve()
 
 
 def topic(update: Update, context: CallbackContext) -> None:
@@ -918,6 +968,7 @@ def main():
     dispatcher.add_handler(CommandHandler("admin", report))
     dispatcher.add_handler(CommandHandler("admins", report))
     dispatcher.add_handler(CommandHandler("start", start))
+    dispatcher.add_handler(ChatJoinRequestHandler(chat_join_request))
     dispatcher.add_handler(CommandHandler("topic", topic))
     dispatcher.add_handler(CommandHandler("stopic", topic))
     dispatcher.add_handler(CommandHandler("version", version))
