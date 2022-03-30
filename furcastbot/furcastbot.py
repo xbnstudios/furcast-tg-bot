@@ -378,7 +378,7 @@ def nextshow(update: Update, context: CallbackContext) -> None:
             update.effective_user.id,
             update.effective_chat.title,
         )
-        updater.job_queue.run_repeating(
+        context.job_queue.run_repeating(
             next_pin_callback,
             60,
             1,  # 0 results in no first-run, probably a library bug...
@@ -526,7 +526,7 @@ def revoke_invite_links(update: Update, context: CallbackContext) -> None:
     # Regenerate the bot's own invite link, just in case.
     if specific_link_str is None:
         try:
-            bot_join_link = updater.bot.export_chat_invite_link(
+            bot_join_link = context.bot.export_chat_invite_link(
                 config["chats"][target]["id"]
             )
             if bot_join_link is None:
@@ -552,7 +552,7 @@ def revoke_invite_links(update: Update, context: CallbackContext) -> None:
             link,
         )
         try:
-            revoked_link = updater.bot.revoke_chat_invite_link(chat_id, link)
+            revoked_link = context.bot.revoke_chat_invite_link(chat_id, link)
             if not revoked_link.is_revoked:
                 raise Exception("Mysterious failure")
             removed_count += 1
@@ -680,7 +680,7 @@ def chat_join_request(update: Update, context: CallbackContext) -> None:
 
     # Revoke and forget link
     try:
-        revoked_link = updater.bot.revoke_chat_invite_link(
+        revoked_link = context.bot.revoke_chat_invite_link(
             request.chat.id, request.invite_link.invite_link
         )
         if not revoked_link.is_revoked:
