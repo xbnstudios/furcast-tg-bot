@@ -51,9 +51,9 @@ def load_config(file):
     # show slugs and copy show references to alias names
     for slug, show in new_config["shows"].items():
         show["slug"] = slug
-        new_config["shows"] = {
-            alias: show for alias in show.get("aliases", [])
-        } | new_config["shows"]
+        alias_dict = {alias: show for alias in show.get("aliases", [])}
+        alias_dict.update(new_config["shows"])
+        new_config["shows"] = alias_dict
 
     # chat slugs
     for slug, chat in new_config["chats"].items():
@@ -75,7 +75,7 @@ def load_config(file):
     # timezone alias -> canonical timezone name
     new_timezones = {}
     for canonical, aliases in new_config["timezones"].items():
-        new_timezones |= {alias: canonical for alias in aliases}
+        new_timezones.update({alias: canonical for alias in aliases})
 
     new_join_delay = {
         chat["id"]: timedelta(minutes=chat.get("rate_limit_delay_minutes", 0))
