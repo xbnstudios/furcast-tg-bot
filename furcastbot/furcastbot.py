@@ -339,10 +339,6 @@ def nextshow(update: Update, context: CallbackContext) -> None:
     """Bot /next callback
     Posts the next scheduled show for a given slug/name and timezone"""
 
-    # Message edit.
-    if update.message is None:
-        return
-
     args = update.message.text.split(" ")
 
     # Which show
@@ -490,6 +486,7 @@ def revoke_invite_links(update: Update, context: CallbackContext) -> None:
     /newlink CHAT_SLUG INVITE_LINK
     """
 
+    # if this chat doesn't manage any chats
     if update.effective_chat.id not in managed_chats:
         return
 
@@ -965,17 +962,37 @@ def main():
     updater = Updater(token=config["telegram_token"], use_context=True)
     dispatcher = updater.dispatcher
 
-    dispatcher.add_handler(CommandHandler("chatinfo", chatinfo))
-    dispatcher.add_handler(CommandHandler("newlink", revoke_invite_links))
-    dispatcher.add_handler(CommandHandler("next", nextshow))
-    dispatcher.add_handler(CommandHandler("report", report))
-    dispatcher.add_handler(CommandHandler("admin", report))
-    dispatcher.add_handler(CommandHandler("admins", report))
-    dispatcher.add_handler(CommandHandler("start", start))
+    dispatcher.add_handler(
+        CommandHandler("chatinfo", chatinfo, ~Filters.update.edited_message)
+    )
+    dispatcher.add_handler(
+        CommandHandler("newlink", revoke_invite_links, ~Filters.update.edited_message)
+    )
+    dispatcher.add_handler(
+        CommandHandler("next", nextshow, ~Filters.update.edited_message)
+    )
+    dispatcher.add_handler(
+        CommandHandler("report", report, ~Filters.update.edited_message)
+    )
+    dispatcher.add_handler(
+        CommandHandler("admin", report, ~Filters.update.edited_message)
+    )
+    dispatcher.add_handler(
+        CommandHandler("admins", report, ~Filters.update.edited_message)
+    )
+    dispatcher.add_handler(
+        CommandHandler("start", start, ~Filters.update.edited_message)
+    )
     dispatcher.add_handler(ChatJoinRequestHandler(chat_join_request))
-    dispatcher.add_handler(CommandHandler("topic", topic))
-    dispatcher.add_handler(CommandHandler("stopic", topic))
-    dispatcher.add_handler(CommandHandler("version", version))
+    dispatcher.add_handler(
+        CommandHandler("topic", topic, ~Filters.update.edited_message)
+    )
+    dispatcher.add_handler(
+        CommandHandler("stopic", topic, ~Filters.update.edited_message)
+    )
+    dispatcher.add_handler(
+        CommandHandler("version", version, ~Filters.update.edited_message)
+    )
     dispatcher.add_handler(
         MessageHandler(
             Filters.entity(telegram.constants.MESSAGEENTITY_MENTION)
