@@ -33,6 +33,7 @@ from .config import Config
 from .membership import chat_join_request, revoke_invite_links, start
 from .report import report, report_mention_wrapper
 from .topics import button, topic
+from .utility import chatinfo, version
 
 config = Config.get_config()
 
@@ -49,20 +50,6 @@ if flask:
     logging.info("Running in flask")
     bot = Bot(token=config.config["telegram_token"])
     dispatcher = Dispatcher(bot, None, workers=0, use_context=True)
-
-
-def chatinfo(update: Update, context: CallbackContext) -> None:
-    """Bot /chatinfo callback
-    Posts info about the current chat"""
-
-    update.effective_chat.send_message(
-        text="Name: {}\nID: {}\nUsername: {}\nType: {}".format(
-            update.effective_chat.title,
-            update.effective_chat.id,
-            update.effective_chat.username,
-            update.effective_chat.type,
-        )
-    )
 
 
 def post_pin(
@@ -359,18 +346,6 @@ def nextshow(update: Update, context: CallbackContext) -> None:
         text="The next {} is {}. That's {} from now.".format(
             show["name"], datestr, deltastr
         )
-    )
-
-
-def version(update: Update, context: CallbackContext) -> None:
-    """Bot /version callback
-    Posts bot info and Cloud Function version"""
-
-    update.effective_chat.send_message(
-        "<a href='https://github.com/xbnstudios/furcast-tg-bot'>furcast-tg-bot</a>\n"
-        "GCF version: {}".format(os.environ.get("X_GOOGLE_FUNCTION_VERSION")),
-        disable_web_page_preview=True,
-        parse_mode=ParseMode.HTML,
     )
 
 
