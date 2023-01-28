@@ -19,7 +19,8 @@ Don't tell BotFather.
 chatinfo - List the chat ID
 newlink [slug] [link [link...]] - (Admin group) Revoke invite link(s)
 next [slug] pin - Pin a continuously updated countdown message
-start - (PM) Request the group invite link. Prompted by TG client.
+start - (PM) Print some help & suggest /join. Prompted by TG client.
+join - (PM) Request a group invite
 stopic - Silently set the topic (delete command message)
 version - Print the source link and GCF version if available
 ```

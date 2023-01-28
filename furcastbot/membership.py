@@ -11,11 +11,19 @@ from typing import Dict, List, Tuple
 from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
     Update,
 )
-import telegram.constants
+from telegram.constants import ParseMode
 import telegram.error
-from telegram.ext import CallbackContext
+from telegram.ext import (
+    CallbackContext,
+    CommandHandler,
+    ConversationHandler,
+    filters,
+    MessageHandler,
+)
 
 from .config import Config
 
@@ -26,6 +34,204 @@ config = Config.get_config()
 join_link_list: List[Tuple[str, int]] = []
 join_rate_limit_last_join: Dict[str, datetime] = defaultdict(
     lambda: datetime(1970, 1, 1, 0, 0, 0, 0, tzinfo=timezone.utc)
+)
+
+
+JOIN_START, JOIN_READING_RULES = range(2)
+RULE_ACCEPT_STRING = "I've read and agree to the rules"
+RULE_REJECT_STRING = "Never mind"
+
+
+async def join_start(update: Update, context: CallbackContext) -> int:
+    """Bot /join handler
+    Guide through chat choice and rules"""
+    user = update.effective_user
+    args = update.message.text.split()
+    chat_name_to_join = config.config["default_invite_chat"]
+    if len(args) > 1:
+        chat_name_to_join = args[1].lower()
+        if not config.chats.get(chat_name_to_join, {}).get("invite", False):
+            await update.message.reply_text(
+                "I'm sorry, I don't understand. Try <code>/join chatname</code>.",
+                parse_mode=ParseMode.HTML,
+            )
+            return ConversationHandler.END
+
+    # Ignore messages that aren't PMed to the bot.
+    if update.effective_chat.type != "private":
+        return ConversationHandler.END
+
+    context.user_data["join_chat_name"] = chat_name_to_join
+
+    await update.effective_chat.send_message(
+        config.chat_map[config.chats[chat_name_to_join]["id"]]
+        .get("invite_greeting", "Please click the button.")
+        .format(escaped_fname=escape(user.first_name), chat=chat_name_to_join),
+        parse_mode=ParseMode.HTML,
+        disable_web_page_preview=True,
+        reply_markup=ReplyKeyboardMarkup(
+            [[RULE_REJECT_STRING, RULE_ACCEPT_STRING]], one_time_keyboard=True
+        ),
+    )
+
+    return JOIN_READING_RULES
+
+
+async def join_real(update: Update, context: CallbackContext) -> int:
+    """Group join rules-accepted handler
+    Gives user invite link button"""
+
+    # Ignore messages that aren't PMed to the bot.
+    if update.effective_chat.type != "private":
+        return ConversationHandler.END
+
+    chat_name_to_join = context.user_data["join_chat_name"]
+    chat_to_join = config.chats[chat_name_to_join]
+    current_timestamp = datetime.now(tz=timezone.utc)
+    user = update.effective_user
+
+    user_status = await context.bot.get_chat_member(chat_to_join["id"], user.id)
+    # user_status.LEFT is "they are not a member, but can join on their own"
+    # This means that people who are banned are also excluded from joining
+    # through the bot (with a somewhat confusing error).
+    if user_status.status != user_status.LEFT:
+        logging.info(
+            "Denying join by %s (@%s, %r) to %s because they're already a member "
+            "or were banned. status=%s",
+            user.id,
+            user.username,
+            user.full_name,
+            chat_to_join["slug"],
+            user_status.status,
+        )
+        await update.message.reply_text(
+            (
+                "You're already in the {} group!\n"
+                "Did you mean to join a different one with e.g. <code>/join {}</code>?"
+            ).format(chat_name_to_join, config.config["default_invite_chat"]),
+            parse_mode=ParseMode.HTML,
+        )
+        return ConversationHandler.END
+
+    # If join rate limits are enabled, throttle joins to prevent join flooding.
+    if config.chat_map[chat_to_join["id"]].get("rate_limit_delay_minutes", 0) > 0:
+        logging.debug("rate limiting is active for chat %s", chat_to_join["slug"])
+        time_since_last_join = (
+            current_timestamp - join_rate_limit_last_join[chat_to_join["id"]]
+        )
+        logging.debug(
+            "it has been %s since the last permitted join", time_since_last_join
+        )
+        if time_since_last_join < config.join_rate_limit_delay[chat_to_join["id"]]:
+            logging.info(
+                "Denying join by %s (%s, %s) to %s due to rate limit",
+                user.username,
+                user.full_name,
+                user.id,
+                chat_to_join["slug"],
+            )
+            await update.message.reply_html(
+                text=config.config["rate_limit_template"]
+                .replace("\n", " ")
+                .replace("<br>", "\n")
+                .format(escaped_fname=escape(user.first_name)),
+                disable_web_page_preview=True,
+            )
+            return  # Don't end
+    join_rate_limit_last_join[chat_to_join["id"]] = current_timestamp
+    del context.user_data["join_chat_name"]
+
+    # Create and send link. creates_join_request prevents use of member_limit.
+    # We use the link name to associate it with one user, and revoke it after
+    # use. This avoids issues with links reactivating after the user leaves the
+    # chat again, and issues with the bot forgetting about links between
+    # restarts.
+    try:
+        # 5 second minimum
+        expiry_date = current_timestamp + timedelta(
+            minutes=config.config.get("join_link_valid_minutes", 10), seconds=5
+        )
+        logging.info(
+            "Inviting %s (%s, %s) to %s, link expiry %s",
+            user.username,
+            user.full_name,
+            user.id,
+            chat_to_join["slug"],
+            expiry_date,
+        )
+
+        user_reference = ("@" + user.username) if user.username else user.full_name
+        custom_join_link = await context.bot.create_chat_invite_link(
+            chat_to_join["id"],
+            expire_date=expiry_date,
+            name=f"{user.id} {user_reference}",
+            creates_join_request=True,
+        )
+        join_link_list.append((custom_join_link.invite_link, chat_to_join["id"]))
+
+        await update.message.reply_html(
+            text=chat_to_join.get(
+                "invite_confirmation",
+                "Here's your invite link. Use it before it expires!",
+            )
+            .replace("\n", " ")
+            .replace("<br>", "\n")
+            .format(escaped_fname=escape(user.first_name)),
+            reply_markup=InlineKeyboardMarkup(
+                [
+                    [
+                        InlineKeyboardButton(
+                            text="Join",
+                            url=custom_join_link.invite_link,
+                        )
+                    ]
+                ]
+            ),
+            disable_web_page_preview=True,
+        )
+    except telegram.error.TelegramError as e:
+        logging.info("Could not generate invite link: %s", e)
+        await update.message.reply_html(
+            text="Uh oh, something went wrong. Poke an admin.",
+            reply_markup=ReplyKeyboardRemove(),
+        )
+    return ConversationHandler.END
+
+
+async def join_cancel(update: Update, context: CallbackContext) -> int:
+    logging.debug(
+        "join_cancel: %s %s",
+        update.effective_user.username,
+        update.effective_user.id,
+    )
+    await update.message.reply_text("Goodbye!", reply_markup=ReplyKeyboardRemove())
+    return ConversationHandler.END
+
+
+async def join_timeout(update: Update, context: CallbackContext) -> None:
+    logging.debug(
+        "join_timeout: %s %s",
+        update.effective_user.username,
+        update.effective_user.id,
+    )
+    await update.message.reply_text(
+        "Your request timed out, please try again.", reply_markup=ReplyKeyboardRemove()
+    )
+
+
+join_handler = ConversationHandler(
+    entry_points=[
+        CommandHandler("join", join_start),
+    ],
+    states={
+        JOIN_READING_RULES: [
+            MessageHandler(filters.Regex(f"^{RULE_REJECT_STRING}$"), join_cancel),
+            MessageHandler(filters.Regex(f"^{RULE_ACCEPT_STRING}$"), join_real),
+        ],
+        ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL, join_timeout)],
+    },
+    fallbacks=[CommandHandler("cancel", join_cancel)],
+    conversation_timeout=timedelta(minutes=15),  # Leave enough time to read rules
 )
 
 
@@ -116,113 +322,6 @@ def revoke_invite_links(update: Update, context: CallbackContext) -> None:
     )
     reply_text += "".join(["\nFailed: " + link for link in error_links])
     update.message.reply_text(reply_text, disable_web_page_preview=True)
-
-
-async def start(update: Update, context: CallbackContext) -> None:
-    """Bot /start callback
-    Gives user invite link button"""
-    chat_to_join = config.chats[config.config["default_invite_chat"]]
-    current_timestamp = datetime.now(tz=timezone.utc)
-    user = update.effective_user
-
-    # Ignore messages that aren't PMed to the bot.
-    if update.effective_chat.type != "private":
-        return
-
-    user_status = await context.bot.get_chat_member(chat_to_join["id"], user.id)
-    # user_status.LEFT is "they are not a member, but can join on their own"
-    # This means that people who are banned are also excluded from joining
-    # through the bot (with a somewhat confusing error).
-    if user_status.status != user_status.LEFT:
-        logging.info(
-            "Denying join by %s (@%s, %r) to %s because they're already a member "
-            "or were banned. status=%s",
-            user.id,
-            user.username,
-            user.full_name,
-            chat_to_join["slug"],
-            user_status.status,
-        )
-        update.message.reply_text("You're already in that group!")
-        return
-
-    # If join rate limits are enabled, throttle joins to prevent join flooding.
-    if config.chat_map[chat_to_join["id"]].get("rate_limit_delay_minutes", 0) > 0:
-        logging.debug("rate limiting is active for chat %s", chat_to_join["slug"])
-        time_since_last_join = (
-            current_timestamp - join_rate_limit_last_join[chat_to_join["id"]]
-        )
-        logging.debug(
-            "it has been %s since the last permitted join", time_since_last_join
-        )
-        if time_since_last_join < config.join_rate_limit_delay[chat_to_join["id"]]:
-            logging.info(
-                "Denying join by %s (%s, %s) to %s due to rate limit",
-                user.username,
-                user.full_name,
-                user.id,
-                chat_to_join["slug"],
-            )
-            await update.message.reply_html(
-                text=config.config["rate_limit_template"]
-                .replace("\n", " ")
-                .replace("<br>", "\n")
-                .format(escaped_fname=escape(user.first_name)),
-                disable_web_page_preview=True,
-            )
-            return
-    join_rate_limit_last_join[chat_to_join["id"]] = current_timestamp
-
-    # Create and send link. creates_join_request prevents use of member_limit.
-    # We use the link name to associate it with one user, and revoke it after
-    # use. This avoids issues with links reactivating after the user leaves the
-    # chat again, and issues with the bot forgetting about links between
-    # restarts.
-    try:
-        # 5 second minimum
-        expiry_date = current_timestamp + timedelta(
-            minutes=config.config.get("join_link_valid_minutes", 10), seconds=5
-        )
-        logging.info(
-            "Inviting %s (%s, %s) to %s, link expiry %s",
-            user.username,
-            user.full_name,
-            user.id,
-            chat_to_join["slug"],
-            expiry_date,
-        )
-
-        user_reference = ("@" + user.username) if user.username else user.full_name
-        custom_join_link = await context.bot.create_chat_invite_link(
-            chat_to_join["id"],
-            expire_date=expiry_date,
-            name=f"{user.id} {user_reference}",
-            creates_join_request=True,
-        )
-        join_link_list.append((custom_join_link.invite_link, chat_to_join["id"]))
-
-        await update.message.reply_html(
-            text=config.config["join_template"]
-            .replace("\n", " ")
-            .replace("<br>", "\n")
-            .format(escaped_fname=escape(user.first_name)),
-            reply_markup=InlineKeyboardMarkup(
-                [
-                    [
-                        InlineKeyboardButton(
-                            text=config.config.get("join_button_text", "Join"),
-                            url=custom_join_link.invite_link,
-                        )
-                    ]
-                ]
-            ),
-            disable_web_page_preview=True,
-        )
-    except telegram.error.TelegramError as e:
-        logging.info("Could not generate invite link: %s", e)
-        await update.message.reply_html(
-            text="Uh oh, something went wrong. Poke an admin."
-        )
 
 
 async def chat_join_request(update: Update, context: CallbackContext) -> None:

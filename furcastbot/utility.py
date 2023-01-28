@@ -24,6 +24,19 @@ async def chatinfo(update: Update, context: CallbackContext) -> None:
     )
 
 
+async def start(update: Update, context: CallbackContext) -> None:
+    """Bot /start callback
+    Give tips about commands to use"""
+
+    await update.effective_chat.send_message(
+        (
+            "Hello! You can see my command list in the menu below.\n"
+            "Joining a chat? Try sending /join or <code>/join chatname</code>."
+        ),
+        parse_mode=ParseMode.HTML,
+    )
+
+
 async def version(update: Update, context: CallbackContext) -> None:
     """Bot /version callback
     Posts bot info and Cloud Function version"""

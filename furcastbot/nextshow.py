@@ -7,11 +7,8 @@ import logging
 from dateutil import tz
 from ddate.base import DDate
 import requests
-from telegram import (
-    ParseMode,
-    Update,
-)
-import telegram.constants
+from telegram import Update
+from telegram.constants import ParseMode
 import telegram.error
 from telegram.ext import CallbackContext
 

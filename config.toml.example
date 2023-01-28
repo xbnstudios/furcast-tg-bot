@@ -1,14 +1,6 @@
 telegram_token = "12345678:configureconfigureconfigureconfigure"
 api_key = "yourrandomlygeneratedstringhere"
 
-# HTML, be sure to escape <> etc.
-# Available {variables}: escaped_fname
-join_template = """
-Hello, {escaped_fname}! Please
-<a href='https://furcast.fm/chat/#rules'>read the rules</a>,
-then your invite link is below. Use it before it expires!
-"""
-join_button_text = "CLICK ME OH YEAH JUST LIKE THAT"
 join_link_valid_minutes = 1
 default_invite_chat = "furcast"
 
@@ -25,10 +17,16 @@ log_level = "DEBUG"
 [chats]
 # Each chat must have an id=NumericChatID, and may have:
 # join_link = "https://t.me/+foobar" [for unpriv operation. not implemented]
+# invite = true|false (default false, whether the bot will invite users who ask)
+# invite_greeting = "Hello, click below to tell us you're not a bot." (HTML)
+# invite_confirmation = "Your invite link is below, use it before it expires." (HTML)
 # rate_limit_delay_minutes = 10
 # topic_approval_chat = "chat_slug"
 # topic_approval_required = true|false (default true)
 # next_show_default = "show_slug"
+
+# HTML fields like invite_greeting and invite_confirmation need <> escaped,
+#  and have available {variables}: escaped_fname, chat (slug)
 
 [chats.xbn]
 id = -1001170434051
@@ -38,6 +36,14 @@ id = -1001498895240
 
 [chats.furcast]
 id = -1001462860928
+invite = true
+invite_greeting = """
+Hello, {escaped_fname}! You've requested to join the {chat} chat.
+First, please read our <a href='https://furcast.fm/chat/#rules'>chat rules</a>.
+"""
+invite_confirmation = """
+Thanks! Your invite link is below - use it before it expires!
+"""
 admin_chat = "xbn_chatops"
 rate_limit_delay_minutes = 10
 topic_approval_chat = "xbn_chatops"

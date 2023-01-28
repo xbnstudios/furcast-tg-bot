@@ -9,10 +9,9 @@ from telegram import (
     ChatMemberOwner,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    ParseMode,
     Update,
 )
-import telegram.constants
+from telegram.constants import ParseMode
 import telegram.error
 from telegram.ext import CallbackContext
 
@@ -97,6 +96,7 @@ async def topic(update: Update, context: CallbackContext) -> None:
         await context.bot.send_message(
             config.chats[chat["topic_approval_chat"]]["id"],
             (
+                f'<b>{chat["slug"]}</b>: '
                 f'{mention} <a href="{link}">proposed</a> topic "{requested}"\n'
                 "Admins can accept, admins or op can reject:"
             ),
@@ -128,7 +128,7 @@ async def button(update: Update, context: CallbackContext) -> None:
     if data.startswith("t"):
         action, chat_id, user_id, message_id, requested = data.split(",", 4)
         chat_id = int(chat_id)
-        target_chat = context.bot.get_chat(chat_id)
+        target_chat = await context.bot.get_chat(chat_id)
         user_id = int(user_id)
         message_id = int(message_id)
 

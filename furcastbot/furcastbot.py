@@ -15,11 +15,11 @@ from telegram.ext import (
 )
 
 from .config import Config
-from .membership import chat_join_request, revoke_invite_links, start
+from .membership import chat_join_request, join_handler, revoke_invite_links
 from .nextshow import nextshow
 from .report import report, report_mention_wrapper
 from .topics import button, topic
-from .utility import chatinfo, version
+from .utility import chatinfo, start, version
 
 config = Config.get_config()
 
@@ -36,13 +36,13 @@ def main():
 
     application.add_handlers(
         [
+            CommandHandler("start", start, ~filters.UpdateType.EDITED),
             CommandHandler("chatinfo", chatinfo, ~filters.UpdateType.EDITED),
             CommandHandler("newlink", revoke_invite_links, ~filters.UpdateType.EDITED),
             CommandHandler("next", nextshow, ~filters.UpdateType.EDITED),
             CommandHandler("report", report, ~filters.UpdateType.EDITED),
             CommandHandler("admin", report, ~filters.UpdateType.EDITED),
             CommandHandler("admins", report, ~filters.UpdateType.EDITED),
-            CommandHandler("start", start, ~filters.UpdateType.EDITED),
             ChatJoinRequestHandler(chat_join_request),
             CommandHandler("topic", topic, ~filters.UpdateType.EDITED),
             CommandHandler("stopic", topic, ~filters.UpdateType.EDITED),
@@ -52,6 +52,7 @@ def main():
                 report_mention_wrapper,
             ),
             CallbackQueryHandler(button),
+            join_handler,
         ]
     )
     application.run_polling()
