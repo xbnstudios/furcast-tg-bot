@@ -14,12 +14,13 @@ async def chatinfo(update: Update, context: CallbackContext) -> None:
     Posts info about the current chat"""
 
     await update.effective_chat.send_message(
-        text="Name: {}\nID: {}\nUsername: {}\nType: {}".format(
+        text="Name: {}\nID: <code>{}</code>\nUsername: {}\nType: {}".format(
             update.effective_chat.title,
             update.effective_chat.id,
             update.effective_chat.username,
             update.effective_chat.type,
-        )
+        ),
+        parse_mode=ParseMode.HTML,
     )
 
 
