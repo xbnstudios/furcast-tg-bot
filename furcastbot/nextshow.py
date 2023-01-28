@@ -29,29 +29,31 @@ def beat(showtime: datetime) -> str:
     return showtimez.strftime(f"d%d.%m.%y @{beats:03.0f}")
 
 
-def next_pin_callback(context: CallbackContext) -> None:
+async def next_pin_callback(context: CallbackContext) -> None:
     """Creates/updates pin for next show info
     Called every minute by JobQueue after eg. /next fc pin
     """
 
-    ctx = context.job.context
-    logging.debug("Running next-pin job for %s (%s)", ctx["chat"].title, ctx["chat"].id)
-    show = config.shows[ctx["slug"]]
-    delta = ctx["showtime"] - datetime.now(tz=timezone.utc)
+    job_data = context.job.data
+    logging.debug(
+        "Running next-pin job for %s (%s)", job_data["chat"].title, job_data["chat"].id
+    )
+    show = config.shows[job_data["slug"]]
+    delta = job_data["showtime"] - datetime.now(tz=timezone.utc)
 
     if delta.total_seconds() < 0:
         context.job.schedule_removal()
         text = "<a href='https://{}/'>{}</a> is starting!".format(
             show["domain"], show["name"]
         )
-        ctx["message"].edit_text(
+        job_data["message"].edit_text(
             text, parse_mode=ParseMode.HTML, disable_web_page_preview=True
         )
         # Need a new copy to get the current pinned_message
-        chat = context.bot.get_chat(ctx["chat"].id)
+        chat = context.bot.get_chat(job_data["chat"].id)
         if (
             getattr(chat.pinned_message, "message_id", None)
-            == ctx["message"].message_id
+            == job_data["message"].message_id
         ):
             context.bot.unpin_chat_message(chat.id)
         return
@@ -72,20 +74,24 @@ def next_pin_callback(context: CallbackContext) -> None:
         minutestr,
     )
     try:
-        if ctx["message"] is None:
-            ctx["message"] = ctx["chat"].send_message(
+        if job_data["message"] is None:
+            job_data["message"] = await job_data["chat"].send_message(
                 text, parse_mode=ParseMode.HTML, disable_web_page_preview=True
             )
             try:
-                context.bot.pin_chat_message(
-                    ctx["chat"].id, ctx["message"].message_id, disable_notification=True
+                await context.bot.pin_chat_message(
+                    job_data["chat"].id,
+                    job_data["message"].message_id,
+                    disable_notification=True,
                 )
             except telegram.error.BadRequest as e:
                 # Usually "Not enough rights to pin a message"
-                logging.warning("Next-show pin failed in %s: %s", ctx["chat"].id, e)
+                logging.warning(
+                    "Next-show pin failed in %s: %s", job_data["chat"].id, e
+                )
         else:
             try:
-                ctx["message"].edit_text(
+                await job_data["message"].edit_text(
                     text, parse_mode=ParseMode.HTML, disable_web_page_preview=True
                 )
             except telegram.error.BadRequest as e:
@@ -95,12 +101,12 @@ def next_pin_callback(context: CallbackContext) -> None:
                 elif "exactly the same" not in e.message:
                     raise e
     except Exception as e:
-        logging.error("Next-show job failed: %s: %s", ctx["chat"].id, e)
+        logging.error("Next-show job failed: %s: %s", job_data["chat"].id, e)
         context.job.schedule_removal()
         raise e
 
 
-def nextshow(update: Update, context: CallbackContext) -> None:
+async def nextshow(update: Update, context: CallbackContext) -> None:
     """Bot /next callback
     Posts the next scheduled show for a given slug/name and timezone"""
 
@@ -126,11 +132,11 @@ def nextshow(update: Update, context: CallbackContext) -> None:
 
     # Start update job
     if "pin" in args:
-        user = update.effective_chat.get_member(update.effective_user.id)
+        user = await update.effective_chat.get_member(update.effective_user.id)
         if not user.can_pin_messages and user.status != "creator":
-            update.message.reply_text(text="You aren't allowed to do that")
+            await update.message.reply_text(text="You aren't allowed to do that")
             return
-        ctx = {
+        job_data = {
             "chat": update.effective_chat,
             "message": None,
             "slug": slug,
@@ -146,7 +152,7 @@ def nextshow(update: Update, context: CallbackContext) -> None:
             next_pin_callback,
             60,
             1,  # 0 results in no first-run, probably a library bug...
-            context=ctx,
+            data=job_data,
             name=f"next_pin_{update.effective_chat.id}",
         )
         return
@@ -171,7 +177,9 @@ def nextshow(update: Update, context: CallbackContext) -> None:
         # Otherwise try verbatim
         tzobj = tz.gettz(tzstr)
         if tzobj is None:
-            update.message.reply_text(text="Sorry, I don't understand")  # TZ or show
+            await update.message.reply_text(
+                text="Sorry, I don't understand"
+            )  # TZ or show
             return
         datestr = (
             showtime.astimezone(tzobj).strftime("%a %e %b, %H:%M %Z").replace("  ", " ")
@@ -179,13 +187,15 @@ def nextshow(update: Update, context: CallbackContext) -> None:
 
     delta = showtime - datetime.now(tz=timezone.utc)
     if delta.total_seconds() < 0:
-        update.effective_chat.send_message("A show is currently live or just ended!")
+        await update.effective_chat.send_message(
+            "A show is currently live or just ended!"
+        )
         return
 
     deltastr = "{} days, {:02}:{:02}".format(
         delta.days, delta.seconds // (60 * 60), (delta.seconds // 60) % 60
     )
-    update.effective_chat.send_message(
+    await update.effective_chat.send_message(
         text="The next {} is {}. That's {} from now.".format(
             show["name"], datestr, deltastr
         )

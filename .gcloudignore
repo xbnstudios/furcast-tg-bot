@@ -1,9 +1,0 @@
-#!include:.gitignore
-.gcloudignore
-.gitignore
-.git
-LICENSE
-README.md
-config.toml.example
-server.py
-test_request.py

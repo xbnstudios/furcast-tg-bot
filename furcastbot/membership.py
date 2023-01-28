@@ -118,7 +118,7 @@ def revoke_invite_links(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(reply_text, disable_web_page_preview=True)
 
 
-def start(update: Update, context: CallbackContext) -> None:
+async def start(update: Update, context: CallbackContext) -> None:
     """Bot /start callback
     Gives user invite link button"""
     chat_to_join = config.chats[config.config["default_invite_chat"]]
@@ -129,7 +129,7 @@ def start(update: Update, context: CallbackContext) -> None:
     if update.effective_chat.type != "private":
         return
 
-    user_status = context.bot.get_chat_member(chat_to_join["id"], user.id)
+    user_status = await context.bot.get_chat_member(chat_to_join["id"], user.id)
     # user_status.LEFT is "they are not a member, but can join on their own"
     # This means that people who are banned are also excluded from joining
     # through the bot (with a somewhat confusing error).
@@ -163,7 +163,7 @@ def start(update: Update, context: CallbackContext) -> None:
                 user.id,
                 chat_to_join["slug"],
             )
-            update.message.reply_html(
+            await update.message.reply_html(
                 text=config.config["rate_limit_template"]
                 .replace("\n", " ")
                 .replace("<br>", "\n")
@@ -193,7 +193,7 @@ def start(update: Update, context: CallbackContext) -> None:
         )
 
         user_reference = ("@" + user.username) if user.username else user.full_name
-        custom_join_link = context.bot.create_chat_invite_link(
+        custom_join_link = await context.bot.create_chat_invite_link(
             chat_to_join["id"],
             expire_date=expiry_date,
             name=f"{user.id} {user_reference}",
@@ -201,7 +201,7 @@ def start(update: Update, context: CallbackContext) -> None:
         )
         join_link_list.append((custom_join_link.invite_link, chat_to_join["id"]))
 
-        update.message.reply_html(
+        await update.message.reply_html(
             text=config.config["join_template"]
             .replace("\n", " ")
             .replace("<br>", "\n")
@@ -220,10 +220,12 @@ def start(update: Update, context: CallbackContext) -> None:
         )
     except telegram.error.TelegramError as e:
         logging.info("Could not generate invite link: %s", e)
-        update.message.reply_html(text="Uh oh, something went wrong. Poke an admin.")
+        await update.message.reply_html(
+            text="Uh oh, something went wrong. Poke an admin."
+        )
 
 
-def chat_join_request(update: Update, context: CallbackContext) -> None:
+async def chat_join_request(update: Update, context: CallbackContext) -> None:
     request = update.chat_join_request
 
     if request.invite_link.creator.id != context.bot.id:
@@ -232,7 +234,7 @@ def chat_join_request(update: Update, context: CallbackContext) -> None:
 
     # Revoke and forget link
     try:
-        revoked_link = context.bot.revoke_chat_invite_link(
+        revoked_link = await context.bot.revoke_chat_invite_link(
             request.chat.id, request.invite_link.invite_link
         )
         if not revoked_link.is_revoked:
@@ -259,7 +261,7 @@ def chat_join_request(update: Update, context: CallbackContext) -> None:
             request.from_user.full_name,
             request.invite_link.name,
         )
-        request.decline()
+        await request.decline()
     else:
         logging.info(
             "Approving join request to %s by %s (%s, %s)",
@@ -268,4 +270,4 @@ def chat_join_request(update: Update, context: CallbackContext) -> None:
             request.from_user.username,
             request.from_user.full_name,
         )
-        request.approve()
+        await request.approve()

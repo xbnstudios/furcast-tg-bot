@@ -5,6 +5,8 @@ import logging
 from telegram import (
     Bot,
     Chat,
+    ChatMemberAdministrator,
+    ChatMemberOwner,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     ParseMode,
@@ -19,18 +21,18 @@ from .config import Config
 config = Config.get_config()
 
 
-def topic(update: Update, context: CallbackContext) -> None:
+async def topic(update: Update, context: CallbackContext) -> None:
     """Bot /topic callback
     Changes chat title, if allowed"""
 
     # No PMs
     if update.effective_chat.type == "private":
-        update.message.reply_text("Sorry, that only works in groups.")
+        await update.message.reply_text("Sorry, that only works in groups.")
         return
 
     parts = update.message.text.split(" ", 1)
     if len(parts) < 2 or len(parts[1].strip()) == 0:
-        update.message.reply_html(
+        await update.message.reply_html(
             f"Try e.g. <code>{parts[0]} Not My Cup Of Legs</code> to suggest "
             f"a chat topic, or <code>{parts[0]} -</code> to clear"
         )
@@ -44,14 +46,13 @@ def topic(update: Update, context: CallbackContext) -> None:
 
     # Unrestricted chat, or admin
     chat = config.chat_map[update.effective_chat.id]
-    user = update.effective_chat.get_member(update.effective_user.id)
+    user = await update.effective_chat.get_member(update.effective_user.id)
     if (
-        not chat.get("topic_approval_required", True)
+        chat.get("topic_approval_required", True) is False
+        or isinstance(user, ChatMemberOwner)
         # No reason to require full can_change_info for this.
         # Chatops have can_delete_messages, so let's use that.
-        or user.can_delete_messages
-        # I have no idea why being the creator doesn't imply that perm
-        or user.status == "creator"
+        or (isinstance(user, ChatMemberAdministrator) and user.can_delete_messages)
     ):
         logging.info(
             "%s: %s: %s",
@@ -62,18 +63,18 @@ def topic(update: Update, context: CallbackContext) -> None:
         # If silent change
         if parts[0] == "/stopic":
             try:
-                update.message.delete()
+                await update.message.delete()
             except telegram.error.BadRequest as e:
                 logging.warning(
                     "stopic message delete failed in %s: %s",
                     update.effective_chat.id,
                     e,
                 )
-        topic_set(context.bot, update.effective_chat, requested)
+        await topic_set(context.bot, update.effective_chat, requested)
         if "topic_approval_chat" in chat:
             mention = update.message.from_user.mention_html()
             link = update.message.link
-            context.bot.send_message(
+            await context.bot.send_message(
                 config.chats[chat["topic_approval_chat"]]["id"],
                 f'{mention} <a href="{link}">set</a> topic "{requested}"\n',
                 parse_mode=ParseMode.HTML,
@@ -91,9 +92,9 @@ def topic(update: Update, context: CallbackContext) -> None:
             requested,
         )
         if len(callback_data) + 2 > 64:
-            update.message.reply_text("Sorry, that's too long.")
+            await update.message.reply_text("Sorry, that's too long.")
             return
-        context.bot.send_message(
+        await context.bot.send_message(
             config.chats[chat["topic_approval_chat"]]["id"],
             (
                 f'{mention} <a href="{link}">proposed</a> topic "{requested}"\n'
@@ -115,11 +116,11 @@ def topic(update: Update, context: CallbackContext) -> None:
             disable_notification=True,
         )
         if chat["topic_approval_chat"] != chat["slug"]:
-            update.message.reply_text(f'Requested topic "{requested}"')
+            await update.message.reply_text(f'Requested topic "{requested}"')
         return
 
 
-def button(update: Update, context: CallbackContext) -> None:
+async def button(update: Update, context: CallbackContext) -> None:
     """Bot button callback"""
 
     data = update.callback_query.data
@@ -132,7 +133,7 @@ def button(update: Update, context: CallbackContext) -> None:
         message_id = int(message_id)
 
         # Get user's perms in /topic'd chat
-        user = target_chat.get_member(update.effective_user.id)
+        user = await target_chat.get_member(update.effective_user.id)
 
         # Not authorized
         if not (
@@ -149,7 +150,7 @@ def button(update: Update, context: CallbackContext) -> None:
                 == config.chats[config.chat_map[chat_id]["topic_approval_chat"]]["id"]
             )
         ):
-            update.callback_query.answer(text="Nice try")
+            await update.callback_query.answer(text="Nice try")
             return
         logging.debug(
             "%s: %s: %s bytes: %s",
@@ -161,16 +162,16 @@ def button(update: Update, context: CallbackContext) -> None:
 
         # Buttons
         if action == "ta":
-            topic_set(context.bot, context.bot.get_chat(chat_id), requested)
+            await topic_set(context.bot, await context.bot.get_chat(chat_id), requested)
             if (
                 chat_id
                 != config.chats[config.chat_map[chat_id]["topic_approval_chat"]]["id"]
             ):
-                context.bot.send_message(
+                await context.bot.send_message(
                     chat_id, "Accepted!", reply_to_message_id=message_id
                 )
-            update.callback_query.answer(text="Accepted")
-            update.callback_query.message.edit_text(
+            await update.callback_query.answer(text="Accepted")
+            await update.callback_query.message.edit_text(
                 update.callback_query.message.text_html
                 + "\nApproved by "
                 + update.effective_user.mention_html(),
@@ -178,8 +179,8 @@ def button(update: Update, context: CallbackContext) -> None:
             )
             return
         elif action == "tr":
-            update.callback_query.answer(text="Rejected")
-            update.callback_query.message.edit_text(
+            await update.callback_query.answer(text="Rejected")
+            await update.callback_query.message.edit_text(
                 update.callback_query.message.text_html
                 + "\nRejected by "
                 + update.effective_user.mention_html(),
@@ -190,7 +191,7 @@ def button(update: Update, context: CallbackContext) -> None:
     logging.error("Button didn't understand callback: %s", data)
 
 
-def topic_set(bot: Bot, chat: Chat, requested_topic: str) -> None:
+async def topic_set(bot: Bot, chat: Chat, requested_topic: str) -> None:
     """Enact a topic change"""
 
     logging.info(
@@ -205,6 +206,6 @@ def topic_set(bot: Bot, chat: Chat, requested_topic: str) -> None:
         requested_topic = sep + requested_topic
     title = chat.title.split(sep, 1)[0] + requested_topic
     try:
-        bot.set_chat_title(chat.id, title)
+        await bot.set_chat_title(chat.id, title)
     except telegram.error.BadRequest as e:
         logging.warning("Title change failed in %s: %s", chat.id, e)
