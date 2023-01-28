@@ -110,7 +110,7 @@ async def nextshow(update: Update, context: CallbackContext) -> None:
     """Bot /next callback
     Posts the next scheduled show for a given slug/name and timezone"""
 
-    args = update.message.text.split(" ")
+    args = update.message.text.split()
 
     # Which show
     if len(args) > 1 and args[1].lower() in config.shows:
