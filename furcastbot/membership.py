@@ -38,7 +38,7 @@ join_rate_limit_last_join: Dict[str, datetime] = defaultdict(
 
 
 JOIN_START, JOIN_READING_RULES = range(2)
-RULE_ACCEPT_STRING = "I've read and agree to the rules"
+RULE_ACCEPT_STRING = "I agree"
 RULE_REJECT_STRING = "Never mind"
 
 
