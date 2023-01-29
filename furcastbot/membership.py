@@ -70,7 +70,7 @@ async def join_start(update: Update, context: CallbackContext) -> int:
         parse_mode=ParseMode.HTML,
         disable_web_page_preview=True,
         reply_markup=ReplyKeyboardMarkup(
-            [[RULE_REJECT_STRING, RULE_ACCEPT_STRING]], one_time_keyboard=True
+            [[RULE_REJECT_STRING], [RULE_ACCEPT_STRING]], one_time_keyboard=True
         ),
     )
 
