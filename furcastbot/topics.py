@@ -75,7 +75,10 @@ async def topic(update: Update, context: CallbackContext) -> None:
             link = update.message.link
             await context.bot.send_message(
                 config.chats[chat["topic_approval_chat"]]["id"],
-                f'{mention} <a href="{link}">set</a> topic "{requested}"\n',
+                (
+                    f'<b>{chat["slug"]}</b>: '
+                    f'{mention} <a href="{link}">set</a> topic "{requested}"\n'
+                ),
                 parse_mode=ParseMode.HTML,
                 disable_notification=True,
             )
