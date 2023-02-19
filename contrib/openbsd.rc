@@ -1,0 +1,23 @@
+#!/bin/ksh
+
+daemon_execdir=/home/furcast-bot/furcast-tg-bot
+daemon_user=furcast-bot
+daemon=tmux
+daemon_tmux_session="furcast-bot"
+daemon_flags="new-session -d -n bot -s ${daemon_tmux_session} '/home/furcast-bot/venv/bin/python furcastbot/furcastbot.py'"
+
+. /etc/rc.d/rc.subr
+
+rc_bg=YES
+
+rc_reload=NO
+
+rc_stop() {
+		rc_exec "tmux kill-session -t ${daemon_tmux_session}"
+}
+
+rc_check() {
+		rc_exec "tmux list-sessions | grep -q ${daemon_tmux_session}"
+}
+
+rc_cmd $1
