@@ -45,11 +45,18 @@ version - Print the source link and GCF version if available
   * `pip install --upgrade .`
   * `deactivate`
   * `venv/bin/furcastbot` to verify functionality
-  * `sudo loginctl enable-linger bots`
-  * `ln -s ../../../furcast-tg-bot/contrib/furcastbot.service
-    ~/.config/systemd/user/furcastbot.service`
-  * `systemctl --user daemon-reload`
-  * `systemctl --user enable --now furcastbot`
+  * For `systemd`:
+    * `sudo loginctl enable-linger bots`
+    * `ln -s ../../../furcast-tg-bot/contrib/furcastbot.service
+      ~/.config/systemd/user/furcastbot.service`
+    * `systemctl --user daemon-reload`
+    * `systemctl --user enable --now furcastbot`
+  * For OpenBSD (and maybe other sysv-style init systems, we haven't checked):
+    * `doas cp ../../../furcast-tg-bot/contrib/openbsd.rc /etc/rc.d/furcast_bot`
+    * `doas chmod +x /etc/rc.d/furcast_bot`
+    * `doas rcctl start furcast_bot`
+    * `doas rcctl enable furcast_bot`
+    * (If you want to run multiple copies of the bot, we recommend copying the rc script and fiddling with the variables, rather than symlinking and using `rcctl set service_name flags`, since the config file is not read from the flags.)
 
 * Otherwise, for webhooks:
   * Set up a
