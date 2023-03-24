@@ -174,9 +174,18 @@ async def nextshow(update: Update, context: CallbackContext) -> None:
         # Otherwise try verbatim
         tzobj = tz.gettz(tzstr)
         if tzobj is None:
+            tzlink = "https://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
+            # TZ or show error
+            text = (
+                "Sorry, I don't understand.\nFor timezones, try e.g. "
+                "<code>America/Chicago</code> or another from the "
+                "<a href='{}'>tzdata list</a>".format(tzlink)
+            )
             await update.message.reply_text(
-                text="Sorry, I don't understand"
-            )  # TZ or show
+                text=text,
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+            )
             return
         datestr = (
             showtime.astimezone(tzobj).strftime("%a %e %b, %H:%M %Z").replace("  ", " ")
