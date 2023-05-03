@@ -143,7 +143,7 @@ async def button(update: Update, context: CallbackContext) -> None:
             # Topic requester can reject their own
             (update.effective_user.id == user_id and action == "tr")
             # Chatops in the /topic'd chat can approve (see topic() note)
-            or user.can_delete_messages
+            or getattr(user, "can_delete_messages", False)
             # I have no idea why being the creator doesn't imply that perm
             or user.status == "creator"
             # Admin group approval: allow anyone
