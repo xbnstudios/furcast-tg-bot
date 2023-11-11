@@ -1,0 +1,9 @@
+#!include:.gitignore
+.gcloudignore
+.git
+.gitignore
+LICENSE.txt
+README.md
+config.toml.example
+contrib/
+!config.toml

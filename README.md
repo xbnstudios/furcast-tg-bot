@@ -58,7 +58,7 @@ version - Print the source link and GCF version if available
     * `doas rcctl enable furcast_bot`
     * (If you want to run multiple copies of the bot, we recommend copying the rc script and fiddling with the variables, rather than symlinking and using `rcctl set service_name flags`, since the config file is not read from the flags.)
 
-* Otherwise, for webhooks:
+* For the GCP part:
   * Set up a
     [new GCP project](https://console.cloud.google.com/projectcreate?previousPage=%2Ffunctions%2Flist)
   * [Enable Cloud Functions](https://console.cloud.google.com/flows/enableapi?apiid=cloudfunctions)
@@ -75,9 +75,9 @@ version - Print the source link and GCF version if available
   * Deploy to GCF with the Google Cloud SDK (Repeat after code/config updates)
 
   ```bash
-  gcloud beta functions deploy furcast-tg-bot --runtime python37 --trigger-http \
-      --entry-point webhook --memory 128M --timeout 3s --configuration xbn \
-      --set-env-vars "JOIN_LINK=$JOIN_LINK,TELEGRAM_TOKEN=$TELEGRAM_TOKEN,APIKEY=$APIKEY"
+  gcloud functions deploy furcast-tg-bot --trigger-http --entry-point webhook \
+    --memory 128M --timeout 5s --configuration xbn --set-env-vars "JOIN_LINK=error" \
+    --runtime python311 --docker-registry=artifact-registry --set-build-env-vars=GOOGLE_FUNCTION_SOURCE=main.py
   ```
 
   * From the output, get `httpsTrigger.url`, and set the webhook in the telegram bot:
@@ -88,10 +88,6 @@ version - Print the source link and GCF version if available
 
 ### Helpful stuff:
 ```bash
-# See configured webhooks for bot
-curl "https://api.telegram.org/bot$TELEGRAM_TOKEN/getWebhookInfo"
-# See currently running version
-curl "$TRIGGER_URL?apikey=$APIKEY&version"
 # Re-deploy with the same settings,
-gcloud beta functions deploy furcast-tg-bot --configuration xbn
+gcloud functions deploy furcast-tg-bot --configuration xbn
 ```

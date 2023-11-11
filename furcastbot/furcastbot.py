@@ -15,6 +15,7 @@ from telegram.ext import (
 )
 
 from .config import Config
+from .live import webhook  # noqa: F401
 from .membership import chat_join_request, join_handler, revoke_invite_links
 from .nextshow import nextshow
 from .report import report, report_mention_wrapper

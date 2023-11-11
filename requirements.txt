@@ -1,0 +1,9 @@
+# Duplicated from setup.cfg for gcloud
+pluggy >=1.0.0,<2
+python-dateutil >=2.8.2,<3
+python-telegram-bot[job-queue] >=20.0,<21
+requests >=2.28.2,<3
+ddate >=0.1.2,<1
+ujson >=5.7.0,<6
+tomlkit >= 0.11.6,<1
+flask[async] >= 2.3.3,<3
