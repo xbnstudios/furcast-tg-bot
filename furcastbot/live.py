@@ -78,7 +78,7 @@ def post_pin(
         sent_messages = {announce_list[0]: root_message}
 
         if forward:
-            for target_chat_id in announce_list[1:]:
+            for target_chat_id in list(announce_list)[1:]:
                 sent_messages[target_chat_id] = bot.forward_message(
                     target_chat_id,
                     root_message.chat_id,
