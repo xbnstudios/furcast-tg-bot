@@ -44,7 +44,7 @@ async def webhook_real(request: Request):
             pin = False
         notify = True if request.form.get("notify") in ["true", "1"] else False
         forward = True if request.form.get("forward") in ["true", "1"] else False
-        return post_pin(
+        return await post_pin(
             bot,
             request.form["group"],
             request.form.get("message"),
@@ -54,7 +54,7 @@ async def webhook_real(request: Request):
         )
 
 
-def post_pin(
+async def post_pin(
     bot: Bot, group: str, message=None, pin=None, notify=False, forward=False
 ) -> Response:
     """Post a message to a group, pin/unpin
@@ -72,14 +72,14 @@ def post_pin(
     announce_list = config.config["announce"][group]
 
     if message is not None:
-        root_message = bot.send_message(
+        root_message = await bot.send_message(
             announce_list[0], message, disable_notification=not notify
         )
         sent_messages = {announce_list[0]: root_message}
 
         if forward:
             for target_chat_id in list(announce_list)[1:]:
-                sent_messages[target_chat_id] = bot.forward_message(
+                sent_messages[target_chat_id] = await bot.forward_message(
                     target_chat_id,
                     root_message.chat_id,
                     root_message.message_id,
@@ -92,7 +92,7 @@ def post_pin(
                 if chat_id == announce_list[0]:
                     continue
                 try:
-                    bot.pin_chat_message(
+                    await bot.pin_chat_message(
                         chat_id, message.message_id, disable_notification=True
                     )
                 except telegram.error.BadRequest as e:
@@ -102,7 +102,7 @@ def post_pin(
     if pin is False:
         for chat_id in announce_list:
             try:
-                bot.unpin_chat_message(chat_id)
+                await bot.unpin_chat_message(chat_id)
             except telegram.error.BadRequest as e:
                 # Usually "Not enough rights to unpin a message"
                 logging.warning("Unpin failed in %s: %s", chat_id, e)
@@ -179,6 +179,6 @@ async def post_np(bot: Bot, title: str, show_slug: str) -> None:
             logging.error("post_np failed: %s: %s", show_slug, e)
             raise e
 
-        # context.bot.unpin_chat_message(chat.id)
+        # await context.bot.unpin_chat_message(chat.id)
 
     return make_response({"status": "OK"}, 200)
