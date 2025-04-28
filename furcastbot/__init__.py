@@ -1,4 +1,4 @@
 from __future__ import annotations
 
-__author__ = "Riley Carter"
-__version__ = "2.2"
+__author__ = "Riley Clarke"
+__version__ = "2.3"

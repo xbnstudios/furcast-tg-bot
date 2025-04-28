@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "furcastbot"
+description = "Utility bot for FurCast"
+dynamic = ["version"]
+readme = "README.md"
+license = "EUPL-1.2"
+license-files = ["LICENSE.txt"]
+authors = [{name = "Riley Clarke", email = "riley@bad.pet"}]
+maintainers = [{name = "Riley Clarke", email = "riley@bad.pet"}]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Operating System :: OS Independent",
+]
+
+requires-python = ">=3.9, <4"
+dependencies = [
+    "pluggy >=1.5,<2",
+    "python-dateutil >=2.9,<3",
+    "python-telegram-bot[job-queue] >=22,<23",
+    "requests >=2.32.3,<3",
+    "ddate >=0.1.2,<1",
+    "ujson >=5.10,<6",
+    "tomlkit >= 0.13.2,<1",
+    "flask[async] >= 3.1,<4",
+]
+
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "flake8",
+    "flake8-coding",
+    "flake8-import-order",
+    "flake8-pyproject",
+    "types-python-dateutil",
+]
+
+[project.scripts]
+furcastbot = "furcastbot.furcastbot:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "furcastbot.__version__"}
+
+[tool.setuptools.packages]
+find = {}
+
+[tool.flake8]
+max-line-length = 99
+application-import-names = ["main", "furcastbot"]
+import-order-style = "google"
+exclude = ["env/*", "venv/*"]
+no-accept-encodings = true
+ignore = [
+    # "line break before binary operator" - black conflict
+    "W503",
+    # Unnecessary on py3.9+
+    "FI10","FI11","FI12","FI13","FI14","FI15","FI16","FI17",
+    # Needed until py3.11
+    "FI58",
+]
