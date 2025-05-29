@@ -202,9 +202,16 @@ async def nextshow(update: Update, context: CallbackContext) -> None:
         )
         return
 
-    deltastr = "{} days, {:02}:{:02}".format(
-        delta.days, delta.seconds // (60 * 60), (delta.seconds // 60) % 60
-    )
+    daystr = ""
+    if delta.days == 1:
+        daystr = "1 day, "
+    elif delta.days > 1:
+        daystr = f"{delta.days} days, "
+    hours = delta.seconds // (60 * 60)
+    minutes = (delta.seconds // 60) % 60
+    seconds = delta.seconds % 60
+    secondsstr = "" if minutes > 10 else f":{seconds:02}"
+    deltastr = "{}{:02}:{:02}{}".format(daystr, hours, minutes, secondsstr)
     await update.effective_chat.send_message(
         text="The next {} is {}. That's {} from now.".format(
             show["name"], datestr, deltastr
