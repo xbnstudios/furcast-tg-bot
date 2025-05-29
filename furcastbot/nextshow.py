@@ -55,7 +55,11 @@ async def next_pin_callback(context: CallbackContext) -> None:
             context.bot.unpin_chat_message(chat.id)
         return
 
-    daystr = "" if delta.days < 1 else f"{delta.days} days, "
+    daystr = ""
+    if delta.days == 1:
+        daystr = "1 day, "
+    elif delta.days > 1:
+        daystr = f"{delta.days} days, "
     hours = delta.seconds // (60 * 60)
     if hours > 0 or delta.days > 0:
         hourstr = str(hours) + (" hour" if hours == 1 else " hours") + ", "
