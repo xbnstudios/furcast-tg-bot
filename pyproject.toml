@@ -29,7 +29,7 @@ dependencies = [
 ]
 
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "black",
     "flake8",
@@ -52,7 +52,7 @@ find = {}
 max-line-length = 99
 application-import-names = ["main", "furcastbot"]
 import-order-style = "google"
-exclude = ["env/*", "venv/*"]
+exclude = ["env/*", "venv/*", ".venv/*"]
 no-accept-encodings = true
 ignore = [
     # "line break before binary operator" - black conflict

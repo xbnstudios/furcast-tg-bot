@@ -1,24 +1,31 @@
 name: Python lint
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - "main"
+      - "master"
+      - "gha-*"
+    pull_request:
+      branches: [ "main", "master" ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # 3.9 for carthage, 3.11 for wide support, 3.12 for latest
-        python-version: ["3.9", "3.11", "3.12"]
+        # 3.11 for carthage, 3.12 for latest
+        python-version: ["3.11", "3.12"]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install .[dev]
+        pip install . --group dev
     - name: Lint with black
       run: |
         black --version
